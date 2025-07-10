@@ -49,20 +49,28 @@ def binomial_tree_price(S, K, T, r, sigma, option_type="call", steps=100):
     d = 1 / u
     p = (math.exp(r * dt) - d) / (u - d)
 
-    # Initialize asset prices at maturity
     prices = [S * (u ** j) * (d ** (steps - j)) for j in range(steps + 1)]
-    # Initialize option values at maturity
     if option_type == "call":
         values = [max(0, price - K) for price in prices]
     else:
         values = [max(0, K - price) for price in prices]
 
-    # Step backwards through tree
     for i in range(steps - 1, -1, -1):
         for j in range(i + 1):
             values[j] = (p * values[j + 1] + (1 - p) * values[j]) * math.exp(-r * dt)
 
     return values[0]
+
+def monte_carlo_price(S, K, T, r, sigma, option_type="call", simulations=10000):
+    np.random.seed(42)
+    dt = T
+    ST = S * np.exp((r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * np.random.randn(simulations))
+    if option_type == "call":
+        payoffs = np.maximum(ST - K, 0)
+    else:
+        payoffs = np.maximum(K - ST, 0)
+    price = np.exp(-r * T) * np.mean(payoffs)
+    return price
 
 def black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
     if T <= 0 or sigma == 0:
@@ -136,14 +144,13 @@ return_type = st.selectbox("Return Type", ["Simple", "Log"])
 comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
 max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
 min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
-pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree"])
+pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
 
 if st.button("Calculate Profit & Advice"):
     try:
         T = days_to_expiry / 365
         S = yf.Ticker(ticker).history(period="1d")["Close"].iloc[-1]
 
-        # Get option expiry date close to input days_to_expiry
         options_expiries = yf.Ticker(ticker).options
         expiry_date = None
         for date in options_expiries:
@@ -176,20 +183,19 @@ if st.button("Calculate Profit & Advice"):
             f"Rho: {greeks['Rho']:.4f}"
         )
 
-        # Select pricing model
         if pricing_model == "Black-Scholes":
             price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
         elif pricing_model == "Binomial Tree":
             price = binomial_tree_price(S, strike_price, T, risk_free_rate, iv, option_type)
+        elif pricing_model == "Monte Carlo":
+            price = monte_carlo_price(S, strike_price, T, risk_free_rate, iv, option_type)
         else:
             price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
 
-        # Sector ETFs data
         etfs = SECTOR_MAP.get(sector, [])
         symbols = [ticker] + etfs
         df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
 
-        # Calculate returns
         if return_type == "Log":
             returns = (df / df.shift(1)).apply(np.log).dropna()
         else:
@@ -228,12 +234,10 @@ if st.button("Calculate Profit & Advice"):
         else:
             st.write("- No significant adjustments. Capital allocation looks good.")
 
-        # Profit vs Capital plot
         capitals = list(range(int(min_capital), int(max_capital) + 1, 100))
         profits = []
         for cap in capitals:
             contracts = int(cap / (price * 100)) if price > 0 else 0
-            # Placeholder profit calc: assume 5% price increase on option premium
             profit = contracts * 100 * (price * 1.05 - price)
             profits.append(profit)
 
@@ -247,4 +251,3 @@ if st.button("Calculate Profit & Advice"):
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
-
