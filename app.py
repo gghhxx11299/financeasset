@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 import numpy as np
 import requests
+
 from bs4 import BeautifulSoup
 
 # --- Sector ETFs ---
