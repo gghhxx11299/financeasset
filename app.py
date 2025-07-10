@@ -249,5 +249,57 @@ if st.button("Calculate Profit & Advice"):
         ax.legend()
         st.pyplot(fig)
 
+        # --- New Professional Chart: Implied Volatility Surface (Strike vs Expiry) ---
+
+        # Gather option prices for different strikes & expiries (limit to next 3 expiries)
+        ticker_obj = yf.Ticker(ticker)
+        expiries = ticker_obj.options[:3]  # next 3 expiry dates
+
+        iv_surface_data = []
+        strikes_set = set()
+        for exp in expiries:
+            try:
+                opt_chain = ticker_obj.option_chain(exp)
+                options_df = opt_chain.calls if option_type == "call" else opt_chain.puts
+                strikes = options_df['strike'].values
+                market_prices = options_df['lastPrice'].values
+                T_exp = (datetime.strptime(exp, "%Y-%m-%d") - datetime.now()).days / 365
+                for K_opt, price_opt in zip(strikes, market_prices):
+                    if price_opt > 0 and T_exp > 0:
+                        iv_opt = implied_volatility(price_opt, S, K_opt, T_exp, risk_free_rate, option_type)
+                        if iv_opt is not None:
+                            iv_surface_data.append((exp, K_opt, iv_opt))
+                            strikes_set.add(K_opt)
+            except Exception:
+                continue
+
+        if iv_surface_data:
+            # Prepare data for plotting
+            import matplotlib.ticker as mticker
+
+            df_iv = pd.DataFrame(iv_surface_data, columns=['Expiry', 'Strike', 'IV'])
+            piv = df_iv.pivot(index='Strike', columns='Expiry', values='IV')
+
+            fig2, ax2 = plt.subplots(figsize=(8, 5))
+            c = ax2.imshow(piv.values, aspect='auto', cmap='viridis', origin='lower',
+                           extent=[0, piv.shape[1], piv.index.min(), piv.index.max()])
+            ax2.set_xticks(np.arange(piv.shape[1]) + 0.5)
+            ax2.set_xticklabels(piv.columns, rotation=45, ha='right')
+            ax2.set_ylabel('Strike Price')
+            ax2.set_xlabel('Expiry Date')
+            ax2.set_title(f'Implied Volatility Surface ({option_type.capitalize()} Options)')
+
+            # Colorbar with formatting
+            cbar = fig2.colorbar(c, ax=ax2, format='%.2f')
+            cbar.set_label('Implied Volatility')
+
+            # Grid and styling
+            ax2.grid(False)
+            st.pyplot(fig2)
+
+        else:
+            st.info("Not enough data to display implied volatility surface.")
+
     except Exception as e:
         st.error(f"An error occurred: {e}")
+
