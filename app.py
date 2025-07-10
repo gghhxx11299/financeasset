@@ -32,7 +32,7 @@ SECTOR_MAP = {
     "transportation": ["IYT", "XTN"],
 }
 
-# Pricing Models
+# Pricing Models and Helpers
 def black_scholes_price(S, K, T, r, sigma, option_type="call"):
     if T <= 0:
         return max(0.0, S - K) if option_type == "call" else max(0.0, K - S)
@@ -51,15 +51,12 @@ def black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
     delta = norm.cdf(d1) if option_type == "call" else -norm.cdf(-d1)
     gamma = norm.pdf(d1) / (S * sigma * math.sqrt(T))
     vega = S * norm.pdf(d1) * math.sqrt(T) / 100
-    theta_call = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
-                  - r * K * math.exp(-r * T) * norm.cdf(d2)) / 365
-    theta_put = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
-                 + r * K * math.exp(-r * T) * norm.cdf(-d2)) / 365
+    theta_call = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T)) - r * K * math.exp(-r * T) * norm.cdf(d2)) / 365
+    theta_put = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T)) + r * K * math.exp(-r * T) * norm.cdf(-d2)) / 365
     theta = theta_call if option_type == "call" else theta_put
     rho_call = K * T * math.exp(-r * T) * norm.cdf(d2) / 100
     rho_put = -K * T * math.exp(-r * T) * norm.cdf(-d2) / 100
     rho = rho_call if option_type == "call" else rho_put
-
     return dict(Delta=delta, Gamma=gamma, Vega=vega, Theta=theta, Rho=rho)
 
 def implied_volatility(option_market_price, S, K, T, r, option_type="call", tol=1e-5, max_iter=100):
@@ -75,145 +72,110 @@ def implied_volatility(option_market_price, S, K, T, r, option_type="call", tol=
             sigma_low = sigma_mid
     return None
 
-def get_option_market_price(ticker, option_type, strike, expiry_date):
+def get_option_market_price(ticker, option_type, strike):
     stock = yf.Ticker(ticker)
     try:
-        if expiry_date not in stock.options:
-            return None
-        opt_chain = stock.option_chain(expiry_date)
-        options = opt_chain.calls if option_type == "call" else opt_chain.puts
-        row = options[options['strike'] == strike]
-        return None if row.empty else row.iloc[0]['lastPrice']
+        expiry_dates = stock.options
+        for expiry in expiry_dates:
+            chain = stock.option_chain(expiry)
+            options = chain.calls if option_type == "call" else chain.puts
+            options = options.dropna(subset=["lastPrice"])
+            closest = options.iloc[(options['strike'] - strike).abs().argsort()[:1]]
+            if not closest.empty and closest.iloc[0]['lastPrice'] > 0:
+                return closest.iloc[0]['lastPrice'], expiry
     except:
-        return None
+        pass
+    return None, None
 
 def get_us_10yr_treasury_yield():
     try:
         url = "https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=yield"
         response = requests.get(url, timeout=5)
         soup = BeautifulSoup(response.text, 'html.parser')
-
         table = soup.find('table', {'class': 't-chart'})
         rows = table.find_all('tr')
         latest_row = rows[-1].find_all('td')
         yield_10yr = latest_row[5].text.strip()
-
         return float(yield_10yr) / 100
-    except Exception:
-        return 0.025  # fallback 2.5%
+    except:
+        return 0.03
 
+# --- Streamlit App ---
 st.title("Options Profit & Capital Advisor")
 
 # Inputs
 ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
 option_type = st.selectbox("Option Type", ["call", "put"])
-strike_price = st.number_input("Desired Strike Price", min_value=0.0, value=150.0)
+strike = st.number_input("Desired Strike Price", min_value=0.0, value=150.0)
 days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
-risk_free_rate = st.number_input("Risk-Free Rate (e.g. 0.025)", min_value=0.0, max_value=1.0, value=get_us_10yr_treasury_yield())
+risk_free = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=get_us_10yr_treasury_yield())
 sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
 return_type = st.selectbox("Return Type", ["Simple", "Log"])
-comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
-max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
-min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
-pricing_model = st.selectbox("Pricing Model", ["Black-Scholes"])
+comfortable = st.number_input("Comfortable Capital", min_value=0.0, value=1000.0)
+max_cap = st.number_input("Max Capital", min_value=0.0, value=5000.0)
+min_cap = st.number_input("Min Capital", min_value=0.0, value=500.0)
 
-if st.button("Calculate Profit & Advice"):
+if st.button("Calculate"):
     try:
+        S = yf.Ticker(ticker).history(period="1d")['Close'].iloc[-1]
         T = days_to_expiry / 365
-        S = yf.Ticker(ticker).history(period="1d")["Close"].iloc[-1]
 
-        # Get option price
-        # Find closest expiry date from yfinance if possible (instead of user input)
-        options_expiries = yf.Ticker(ticker).options
-        expiry_date = None
-        for date in options_expiries:
-            dt = datetime.strptime(date, "%Y-%m-%d")
-            diff_days = abs((dt - datetime.now()).days - days_to_expiry)
-            if diff_days <= 5:
-                expiry_date = date
-                break
-
-        if expiry_date is None:
-            st.error("No matching expiry date found near the specified days to expiry.")
+        market_price, expiry_date = get_option_market_price(ticker, option_type, strike)
+        if market_price is None:
+            st.error("Failed to get options data.")
             st.stop()
 
-        price = get_option_market_price(ticker, option_type, strike_price, expiry_date)
-        if price is None:
-            st.error("Failed to fetch option market price. Try a closer-to-the-money strike.")
+        iv = implied_volatility(market_price, S, strike, T, risk_free, option_type)
+        if iv is None or iv <= 0:
+            st.error("Could not compute implied volatility. Try a different strike.")
             st.stop()
 
-        iv = implied_volatility(price, S, strike_price, T, risk_free_rate, option_type)
-        if iv is None:
-            st.error("Could not compute implied volatility. Try a closer-to-the-money strike.")
-            st.stop()
+        greeks = black_scholes_greeks(S, strike, T, risk_free, iv, option_type)
 
-        greeks = black_scholes_greeks(S, strike_price, T, risk_free_rate, iv, option_type)
-        greeks_text = (
-            f"Delta: {greeks['Delta']:.4f} | "
-            f"Gamma: {greeks['Gamma']:.4f} | "
-            f"Vega: {greeks['Vega']:.4f} | "
-            f"Theta: {greeks['Theta']:.4f} | "
-            f"Rho: {greeks['Rho']:.4f}"
-        )
-
-        # Sector ETFs data
         etfs = SECTOR_MAP.get(sector, [])
-        symbols = [ticker] + etfs
-        df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
+        df = yf.download([ticker] + etfs, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
 
-        # Calculate returns
-        if return_type == "Log":
-            returns = (df / df.shift(1)).apply(np.log).dropna()
-        else:
-            returns = df.pct_change(fill_method=None).dropna()
-
+        returns = (df / df.shift(1)).apply(np.log).dropna() if return_type == "Log" else df.pct_change().dropna()
         zscore = ((df[ticker] - df[ticker].rolling(3).mean()) / df[ticker].rolling(3).std()).dropna()
         latest_z = zscore.iloc[-1] if not zscore.empty else 0
-
         correlation = returns.corr().loc[ticker].drop(ticker).mean()
-        iv_divergences = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
+        iv_div = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
 
-        capital = comfortable_capital
-        explanation = []
-        if any(d > 0.1 for d in iv_divergences.values()):
-            explanation.append("High IV divergence → reduce capital")
-            capital *= 0.6
+        cap = comfortable
+        reasons = []
+        if any(v > 0.1 for v in iv_div.values()):
+            reasons.append("High IV divergence")
+            cap *= 0.6
         if abs(latest_z) > 2:
-            explanation.append(f"Z-score extreme ({latest_z:.2f}) → reduce capital")
-            capital *= 0.7
+            reasons.append(f"Z-score = {latest_z:.2f}")
+            cap *= 0.7
         if correlation < 0.5:
-            explanation.append(f"Weak correlation ({correlation:.2f}) → reduce capital")
-            capital *= 0.8
+            reasons.append(f"Corr = {correlation:.2f}")
+            cap *= 0.8
 
-        capital = max(min_capital, min(max_capital, capital))
+        cap = max(min_cap, min(max_cap, cap))
 
-        st.write(f"### Market Price: ${price:.2f}")
-        st.write(f"### Implied Volatility (IV): {iv*100:.2f}%")
-        st.write(f"### Greeks: {greeks_text}")
-        st.write(f"### Suggested Capital: ${capital:.2f}")
+        st.markdown(f"**Market Price:** ${market_price:.2f}")
+        st.markdown(f"**IV:** {iv*100:.2f}%")
+        st.markdown(f"**Suggested Capital:** ${cap:.2f}")
+        st.markdown("**Greeks:**")
+        for k, v in greeks.items():
+            st.write(f"- {k}: {v:.4f}")
 
-        st.write("### Advice:")
-        if explanation:
-            for line in explanation:
-                st.write(f"- {line}")
-        else:
-            st.write("- No significant adjustments. Capital allocation looks good.")
+        if reasons:
+            st.markdown("**Adjustments due to:**")
+            for r in reasons:
+                st.write(f"- {r}")
 
-        # Profit vs Capital plot
-        capitals = list(range(int(min_capital), int(max_capital) + 1, 100))
-        profits = []
-        for cap in capitals:
-            contracts = int(cap / (price * 100)) if price > 0 else 0
-            profit = contracts * 100 * (price - price * 0.95)  # example profit calc
-            profits.append(profit)
+        caps = list(range(int(min_cap), int(max_cap)+1, 100))
+        profits = [int(c / (market_price * 100)) * 100 * (market_price - market_price * 0.95) for c in caps]
 
         fig, ax = plt.subplots()
-        ax.plot(capitals, profits, label="Profit")
+        ax.plot(caps, profits)
+        ax.set_title("Profit vs Capital")
         ax.set_xlabel("Capital ($)")
         ax.set_ylabel("Profit ($)")
-        ax.set_title("Profit vs Capital")
-        ax.legend()
         st.pyplot(fig)
 
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"Error: {e}")
