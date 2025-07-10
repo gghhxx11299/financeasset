@@ -117,17 +117,20 @@ if ticker:
                 S = t.history(period="1d")["Close"].iloc[-1]
                 T = (datetime.strptime(expiry, "%Y-%m-%d") - datetime.today()).days / 365
 
-                row = options[np.isclose(options['strike'], strike, atol=0.5)]
-                if row.empty:
-                    st.error("Strike price not found.")
-                    st.stop()
+                row = options[options['strike'] == strike]
+
+                if row.empty or pd.isna(row.iloc[0]['lastPrice']) or row.iloc[0]['lastPrice'] <= 0:
+                   st.error("Invalid or missing option market price.")
+                   st.stop()
 
                 market_price = row.iloc[0]['lastPrice']
+
+               # Now compute implied volatility safely
                 iv = implied_volatility(market_price, S, strike, T, risk_free, option_type)
 
-                if iv is None:
-                    st.error("Could not compute implied volatility.")
-                    st.stop()
+                if iv is None or iv <= 0:
+                   st.error("Could not compute implied volatility. Try a closer-to-the-money strike.")
+                   st.stop()
 
                 greeks = black_scholes_greeks(S, strike, T, risk_free, iv, option_type)
 
