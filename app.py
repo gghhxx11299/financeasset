@@ -43,6 +43,27 @@ def black_scholes_price(S, K, T, r, sigma, option_type="call"):
     else:
         return K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
+def binomial_tree_price(S, K, T, r, sigma, option_type="call", steps=100):
+    dt = T / steps
+    u = math.exp(sigma * math.sqrt(dt))
+    d = 1 / u
+    p = (math.exp(r * dt) - d) / (u - d)
+
+    # Initialize asset prices at maturity
+    prices = [S * (u ** j) * (d ** (steps - j)) for j in range(steps + 1)]
+    # Initialize option values at maturity
+    if option_type == "call":
+        values = [max(0, price - K) for price in prices]
+    else:
+        values = [max(0, K - price) for price in prices]
+
+    # Step backwards through tree
+    for i in range(steps - 1, -1, -1):
+        for j in range(i + 1):
+            values[j] = (p * values[j + 1] + (1 - p) * values[j]) * math.exp(-r * dt)
+
+    return values[0]
+
 def black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
     if T <= 0 or sigma == 0:
         return dict(Delta=0, Gamma=0, Vega=0, Theta=0, Rho=0)
@@ -115,15 +136,14 @@ return_type = st.selectbox("Return Type", ["Simple", "Log"])
 comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
 max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
 min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
-pricing_model = st.selectbox("Pricing Model", ["Black-Scholes"])
+pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree"])
 
 if st.button("Calculate Profit & Advice"):
     try:
         T = days_to_expiry / 365
         S = yf.Ticker(ticker).history(period="1d")["Close"].iloc[-1]
 
-        # Get option price
-        # Find closest expiry date from yfinance if possible (instead of user input)
+        # Get option expiry date close to input days_to_expiry
         options_expiries = yf.Ticker(ticker).options
         expiry_date = None
         for date in options_expiries:
@@ -137,12 +157,12 @@ if st.button("Calculate Profit & Advice"):
             st.error("No matching expiry date found near the specified days to expiry.")
             st.stop()
 
-        price = get_option_market_price(ticker, option_type, strike_price, expiry_date)
-        if price is None:
+        price_market = get_option_market_price(ticker, option_type, strike_price, expiry_date)
+        if price_market is None:
             st.error("Failed to fetch option market price. Try a closer-to-the-money strike.")
             st.stop()
 
-        iv = implied_volatility(price, S, strike_price, T, risk_free_rate, option_type)
+        iv = implied_volatility(price_market, S, strike_price, T, risk_free_rate, option_type)
         if iv is None:
             st.error("Could not compute implied volatility. Try a closer-to-the-money strike.")
             st.stop()
@@ -155,6 +175,14 @@ if st.button("Calculate Profit & Advice"):
             f"Theta: {greeks['Theta']:.4f} | "
             f"Rho: {greeks['Rho']:.4f}"
         )
+
+        # Select pricing model
+        if pricing_model == "Black-Scholes":
+            price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
+        elif pricing_model == "Binomial Tree":
+            price = binomial_tree_price(S, strike_price, T, risk_free_rate, iv, option_type)
+        else:
+            price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
 
         # Sector ETFs data
         etfs = SECTOR_MAP.get(sector, [])
@@ -187,7 +215,8 @@ if st.button("Calculate Profit & Advice"):
 
         capital = max(min_capital, min(max_capital, capital))
 
-        st.write(f"### Market Price: ${price:.2f}")
+        st.write(f"### Market Price: ${price_market:.2f}")
+        st.write(f"### Model Price ({pricing_model}): ${price:.2f}")
         st.write(f"### Implied Volatility (IV): {iv*100:.2f}%")
         st.write(f"### Greeks: {greeks_text}")
         st.write(f"### Suggested Capital: ${capital:.2f}")
@@ -204,7 +233,8 @@ if st.button("Calculate Profit & Advice"):
         profits = []
         for cap in capitals:
             contracts = int(cap / (price * 100)) if price > 0 else 0
-            profit = contracts * 100 * (price - price * 0.95)  # example profit calc
+            # Placeholder profit calc: assume 5% price increase on option premium
+            profit = contracts * 100 * (price * 1.05 - price)
             profits.append(profit)
 
         fig, ax = plt.subplots()
@@ -217,3 +247,4 @@ if st.button("Calculate Profit & Advice"):
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
+
