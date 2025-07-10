@@ -9,6 +9,7 @@ import numpy as np
 import requests
 from bs4 import BeautifulSoup
 
+
 # --- Sector ETFs ---
 SECTOR_MAP = {
     "technology": ["XLK", "VGT", "QTEC"],
