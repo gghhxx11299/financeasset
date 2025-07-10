@@ -32,8 +32,7 @@ SECTOR_MAP = {
     "transportation": ["IYT", "XTN"],
 }
 
-# Pricing Models
-
+# --- Pricing Models ---
 def black_scholes_price(S, K, T, r, sigma, option_type="call"):
     if T <= 0:
         return max(0.0, S - K) if option_type == "call" else max(0.0, K - S)
@@ -49,21 +48,23 @@ def binomial_tree_price(S, K, T, r, sigma, steps=100, option_type="call"):
     u = math.exp(sigma * math.sqrt(dt))
     d = 1 / u
     q = (math.exp(r * dt) - d) / (u - d)
-    
-    prices = [S * u**j * d**(steps - j) for j in range(steps + 1)]
+
+    prices = [S * (u ** j) * (d ** (steps - j)) for j in range(steps + 1)]
     if option_type == "call":
-        values = [max(p - K, 0) for p in prices]
+        option_values = [max(price - K, 0) for price in prices]
     else:
-        values = [max(K - p, 0) for p in prices]
+        option_values = [max(K - price, 0) for price in prices]
 
     for i in range(steps - 1, -1, -1):
-        values = [math.exp(-r * dt) * (q * values[j + 1] + (1 - q) * values[j]) for j in range(i + 1)]
-    return values[0]
+        option_values = [
+            math.exp(-r * dt) * (q * option_values[j + 1] + (1 - q) * option_values[j])
+            for j in range(i + 1)
+        ]
+    return option_values[0]
 
-def monte_carlo_price(S, K, T, r, sigma, option_type="call", simulations=10000):
-    np.random.seed(42)
-    Z = np.random.standard_normal(simulations)
-    ST = S * np.exp((r - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * Z)
+def monte_carlo_price(S, K, T, r, sigma, simulations=10000, option_type="call"):
+    np.random.seed(0)
+    ST = S * np.exp((r - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * np.random.randn(simulations))
     if option_type == "call":
         payoffs = np.maximum(ST - K, 0)
     else:
@@ -71,40 +72,24 @@ def monte_carlo_price(S, K, T, r, sigma, option_type="call", simulations=10000):
     return math.exp(-r * T) * np.mean(payoffs)
 
 # --- UI ---
-st.title("Options Pricing - Compare Models")
+st.title("Options Pricing Model Comparison")
 
-S = st.number_input("Stock Price (S)", value=100.0)
-K = st.number_input("Strike Price (K)", value=100.0)
-T = st.number_input("Time to Expiry in Years (T)", value=1.0)
-r = st.number_input("Risk-Free Rate (r)", value=0.03)
-sigma = st.number_input("Volatility (sigma)", value=0.2)
+ticker = st.text_input("Ticker", value="AAPL")
 option_type = st.selectbox("Option Type", ["call", "put"])
+K = st.number_input("Strike Price", value=150.0)
+T_days = st.number_input("Days to Expiry", value=30)
+r = st.number_input("Risk-Free Rate", value=0.03)
+sigma = st.number_input("Implied Volatility (%)", value=20.0) / 100
 
-model_choice = st.selectbox("Select Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo", "Compare All"])
+T = T_days / 365.0
+S = yf.Ticker(ticker).history(period="1d")["Close"].iloc[-1]
 
-if st.button("Calculate Option Price"):
-    try:
-        if model_choice == "Black-Scholes":
-            price = black_scholes_price(S, K, T, r, sigma, option_type)
-            st.success(f"Black-Scholes Price: ${price:.4f}")
+if st.button("Compare All Models"):
+    bs_price = black_scholes_price(S, K, T, r, sigma, option_type)
+    bt_price = binomial_tree_price(S, K, T, r, sigma, option_type=option_type)
+    mc_price = monte_carlo_price(S, K, T, r, sigma, option_type=option_type)
 
-        elif model_choice == "Binomial Tree":
-            price = binomial_tree_price(S, K, T, r, sigma, option_type=option_type)
-            st.success(f"Binomial Tree Price: ${price:.4f}")
-
-        elif model_choice == "Monte Carlo":
-            price = monte_carlo_price(S, K, T, r, sigma, option_type=option_type)
-            st.success(f"Monte Carlo Price: ${price:.4f}")
-
-        elif model_choice == "Compare All":
-            bs_price = black_scholes_price(S, K, T, r, sigma, option_type)
-            bt_price = binomial_tree_price(S, K, T, r, sigma, option_type=option_type)
-            mc_price = monte_carlo_price(S, K, T, r, sigma, option_type=option_type)
-            
-            st.subheader("Pricing Model Comparison")
-            st.write(f"- Black-Scholes: ${bs_price:.4f}")
-            st.write(f"- Binomial Tree: ${bt_price:.4f}")
-            st.write(f"- Monte Carlo: ${mc_price:.4f}")
-
-    except Exception as e:
-        st.error(f"Error in calculation: {e}")
+    st.subheader("Pricing Results")
+    st.write(f"Black-Scholes Price: ${bs_price:.2f}")
+    st.write(f"Binomial Tree Price: ${bt_price:.2f}")
+    st.write(f"Monte Carlo Price: ${mc_price:.2f}")
