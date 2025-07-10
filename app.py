@@ -32,7 +32,7 @@ SECTOR_MAP = {
     "transportation": ["IYT", "XTN"],
 }
 
-# Pricing Model
+# Pricing Models and Helpers
 def black_scholes_price(S, K, T, r, sigma, option_type="call"):
     if T <= 0:
         return max(0.0, S - K) if option_type == "call" else max(0.0, K - S)
@@ -51,15 +51,12 @@ def black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
     delta = norm.cdf(d1) if option_type == "call" else -norm.cdf(-d1)
     gamma = norm.pdf(d1) / (S * sigma * math.sqrt(T))
     vega = S * norm.pdf(d1) * math.sqrt(T) / 100
-    theta_call = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
-                  - r * K * math.exp(-r * T) * norm.cdf(d2)) / 365
-    theta_put = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
-                 + r * K * math.exp(-r * T) * norm.cdf(-d2)) / 365
+    theta_call = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T)) - r * K * math.exp(-r * T) * norm.cdf(d2)) / 365
+    theta_put = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T)) + r * K * math.exp(-r * T) * norm.cdf(-d2)) / 365
     theta = theta_call if option_type == "call" else theta_put
     rho_call = K * T * math.exp(-r * T) * norm.cdf(d2) / 100
     rho_put = -K * T * math.exp(-r * T) * norm.cdf(-d2) / 100
     rho = rho_call if option_type == "call" else rho_put
-
     return dict(Delta=delta, Gamma=gamma, Vega=vega, Theta=theta, Rho=rho)
 
 def implied_volatility(option_market_price, S, K, T, r, option_type="call", tol=1e-5, max_iter=100):
@@ -75,6 +72,21 @@ def implied_volatility(option_market_price, S, K, T, r, option_type="call", tol=
             sigma_low = sigma_mid
     return None
 
+def get_option_market_price(ticker, option_type, strike):
+    stock = yf.Ticker(ticker)
+    try:
+        expiry_dates = stock.options
+        for expiry in expiry_dates:
+            chain = stock.option_chain(expiry)
+            options = chain.calls if option_type == "call" else chain.puts
+            options = options.dropna(subset=["lastPrice"])
+            closest = options.iloc[(options['strike'] - strike).abs().argsort()[:1]]
+            if not closest.empty and closest.iloc[0]['lastPrice'] > 0:
+                return closest.iloc[0]['lastPrice'], expiry
+    except:
+        pass
+    return None, None
+
 def get_us_10yr_treasury_yield():
     try:
         url = "https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=yield"
@@ -85,99 +97,86 @@ def get_us_10yr_treasury_yield():
         latest_row = rows[-1].find_all('td')
         yield_10yr = latest_row[5].text.strip()
         return float(yield_10yr) / 100
-    except Exception:
-        return 0.025  # fallback
+    except:
+        return 0.03
 
-# Streamlit App
+# --- Streamlit App ---
 st.title("Options Profit & Capital Advisor")
 
-ticker = st.text_input("Stock Ticker", value="AAPL").upper()
+# Inputs
+ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
 option_type = st.selectbox("Option Type", ["call", "put"])
-pricing_model = st.selectbox("Pricing Model", ["Black-Scholes"])
+strike = st.number_input("Desired Strike Price", min_value=0.0, value=150.0)
+days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
 risk_free = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=get_us_10yr_treasury_yield())
-comfortable = st.number_input("Comfortable Capital ($)", value=1000.0)
-max_cap = st.number_input("Max Capital ($)", value=5000.0)
-min_cap = st.number_input("Min Capital ($)", value=500.0)
 sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
 return_type = st.selectbox("Return Type", ["Simple", "Log"])
+comfortable = st.number_input("Comfortable Capital", min_value=0.0, value=1000.0)
+max_cap = st.number_input("Max Capital", min_value=0.0, value=5000.0)
+min_cap = st.number_input("Min Capital", min_value=0.0, value=500.0)
 
-if ticker:
-    t = yf.Ticker(ticker)
-    expiries = t.options
-    expiry = st.selectbox("Select Expiry Date", expiries)
-    
-    if expiry:
-        chain = t.option_chain(expiry)
-        options = chain.calls if option_type == "call" else chain.puts
-        strikes = sorted(options["strike"].dropna().tolist())
-        strike = st.selectbox("Select Strike Price", strikes)
+if st.button("Calculate"):
+    try:
+        S = yf.Ticker(ticker).history(period="1d")['Close'].iloc[-1]
+        T = days_to_expiry / 365
 
-        if st.button("Calculate Profit & Advice"):
-            try:
-                S = t.history(period="1d")["Close"].iloc[-1]
-                T = (datetime.strptime(expiry, "%Y-%m-%d") - datetime.today()).days / 365
+        market_price, expiry_date = get_option_market_price(ticker, option_type, strike)
+        if market_price is None:
+            st.error("Failed to get options data.")
+            st.stop()
 
-                row = options[options['strike'] == strike]
+        iv = implied_volatility(market_price, S, strike, T, risk_free, option_type)
+        if iv is None or iv <= 0:
+            st.error("Could not compute implied volatility. Try a different strike.")
+            st.stop()
 
-                if row.empty or pd.isna(row.iloc[0]['lastPrice']) or row.iloc[0]['lastPrice'] <= 0:
-                   st.error("Invalid or missing option market price.")
-                   st.stop()
+        greeks = black_scholes_greeks(S, strike, T, risk_free, iv, option_type)
 
-                market_price = row.iloc[0]['lastPrice']
+        etfs = SECTOR_MAP.get(sector, [])
+        df = yf.download([ticker] + etfs, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
 
-               # Now compute implied volatility safely
-                iv = implied_volatility(market_price, S, strike, T, risk_free, option_type)
+        returns = (df / df.shift(1)).apply(np.log).dropna() if return_type == "Log" else df.pct_change().dropna()
+        zscore = ((df[ticker] - df[ticker].rolling(3).mean()) / df[ticker].rolling(3).std()).dropna()
+        latest_z = zscore.iloc[-1] if not zscore.empty else 0
+        correlation = returns.corr().loc[ticker].drop(ticker).mean()
+        iv_div = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
 
-                if iv is None or iv <= 0:
-                   st.error("Could not compute implied volatility. Try a closer-to-the-money strike.")
-                   st.stop()
+        cap = comfortable
+        reasons = []
+        if any(v > 0.1 for v in iv_div.values()):
+            reasons.append("High IV divergence")
+            cap *= 0.6
+        if abs(latest_z) > 2:
+            reasons.append(f"Z-score = {latest_z:.2f}")
+            cap *= 0.7
+        if correlation < 0.5:
+            reasons.append(f"Corr = {correlation:.2f}")
+            cap *= 0.8
 
-                greeks = black_scholes_greeks(S, strike, T, risk_free, iv, option_type)
+        cap = max(min_cap, min(max_cap, cap))
 
-                # Sector correlation & adjustments
-                symbols = [ticker] + SECTOR_MAP.get(sector, [])
-                df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
-                returns = np.log(df / df.shift(1)).dropna() if return_type == "Log" else df.pct_change().dropna()
-                zscore = ((df[ticker] - df[ticker].rolling(3).mean()) / df[ticker].rolling(3).std()).dropna()
-                latest_z = zscore.iloc[-1] if not zscore.empty else 0
-                corr = returns.corr().loc[ticker].drop(ticker).mean()
-                iv_div = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
+        st.markdown(f"**Market Price:** ${market_price:.2f}")
+        st.markdown(f"**IV:** {iv*100:.2f}%")
+        st.markdown(f"**Suggested Capital:** ${cap:.2f}")
+        st.markdown("**Greeks:**")
+        for k, v in greeks.items():
+            st.write(f"- {k}: {v:.4f}")
 
-                capital = comfortable
-                notes = []
-                if any(d > 0.1 for d in iv_div.values()):
-                    notes.append("High IV divergence → reduce capital")
-                    capital *= 0.6
-                if abs(latest_z) > 2:
-                    notes.append(f"Extreme z-score ({latest_z:.2f}) → reduce capital")
-                    capital *= 0.7
-                if corr < 0.5:
-                    notes.append(f"Weak correlation ({corr:.2f}) → reduce capital")
-                    capital *= 0.8
+        if reasons:
+            st.markdown("**Adjustments due to:**")
+            for r in reasons:
+                st.write(f"- {r}")
 
-                capital = max(min_cap, min(max_cap, capital))
+        caps = list(range(int(min_cap), int(max_cap)+1, 100))
+        profits = [int(c / (market_price * 100)) * 100 * (market_price - market_price * 0.95) for c in caps]
 
-                st.markdown(f"**Market Price:** ${market_price:.2f}")
-                st.markdown(f"**Implied Volatility:** {iv*100:.2f}%")
-                st.markdown(f"**Greeks:** Δ {greeks['Delta']:.2f}, Γ {greeks['Gamma']:.4f}, "
-                            f"V {greeks['Vega']:.2f}, Θ {greeks['Theta']:.2f}, ρ {greeks['Rho']:.2f}")
-                st.markdown(f"**Suggested Capital:** ${capital:.2f}")
+        fig, ax = plt.subplots()
+        ax.plot(caps, profits)
+        ax.set_title("Profit vs Capital")
+        ax.set_xlabel("Capital ($)")
+        ax.set_ylabel("Profit ($)")
+        st.pyplot(fig)
 
-                if notes:
-                    st.markdown("**Adjustment Explanation:**")
-                    for note in notes:
-                        st.markdown(f"- {note}")
-
-                # Plot
-                caps = range(int(min_cap), int(max_cap)+1, 100)
-                profits = [int(cap / (market_price * 100)) * 100 * (market_price - 0.95 * market_price) for cap in caps]
-                fig, ax = plt.subplots()
-                ax.plot(caps, profits)
-                ax.set_title("Profit vs Capital")
-                ax.set_xlabel("Capital ($)")
-                ax.set_ylabel("Profit ($)")
-                st.pyplot(fig)
-
-            except Exception as e:
-                st.error(f"Error: {e}")
+    except Exception as e:
+        st.error(f"Error: {e}")
 
