@@ -297,13 +297,13 @@ if st.button("Calculate Profit & Advice"):
             ax2.grid(False)
             st.pyplot(fig2)
             st.markdown("""
----
-**Disclaimer**  
-This application is for educational and informational purposes only. It does not constitute financial, investment, or trading advice.  
-All calculations and suggestions are based on publicly available data and theoretical models, and may not reflect actual market conditions.  
-Always consult with a qualified financial advisor before making investment decisions.  
-The developer of this app is not responsible for any financial losses incurred through the use of this tool.
-""")
+            ---
+            **Disclaimer**  
+            This application is for educational and informational purposes only. It does not constitute financial, investment, or trading advice.  
+            All calculations and suggestions are based on publicly available data and theoretical models, and may not reflect actual market conditions.  
+            Always consult with a qualified financial advisor before making investment decisions.  
+            The developer of this app is not responsible for any financial losses incurred through the use of this tool.
+            """)
 
 
         else:
