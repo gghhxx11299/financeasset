@@ -230,17 +230,24 @@ def plot_stock_volume(ticker, days_to_expiry):
         # Fetch stock data with volume information
         stock_data = yf.download(ticker, period=f"{days_to_expiry}d", progress=False)
         
-        # Check if data is valid and contains Volume column
+        # Check if data is valid
         if stock_data.empty:
             st.warning(f"No data available for {ticker}")
             return None
             
-        if 'Volume' not in stock_data.columns:
+        # Check for volume column (case insensitive)
+        volume_col = None
+        for col in stock_data.columns:
+            if 'volume' in col.lower():
+                volume_col = col
+                break
+                
+        if not volume_col:
             st.warning(f"No volume data available for {ticker}")
             return None
 
         # Clean data
-        stock_data = stock_data.dropna(subset=['Volume'])
+        stock_data = stock_data.dropna(subset=[volume_col])
         if stock_data.empty:
             st.warning("No valid volume data after cleaning")
             return None
@@ -251,14 +258,14 @@ def plot_stock_volume(ticker, days_to_expiry):
         # Add volume bars
         fig.add_trace(go.Bar(
             x=stock_data.index,
-            y=stock_data['Volume'],
+            y=stock_data[volume_col],
             name='Volume',
             marker_color='#1f77b4',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>Volume</b>: %{y:,.0f}<extra></extra>"
         ))
 
         # Calculate and add average volume line
-        avg_volume = stock_data['Volume'].mean()
+        avg_volume = stock_data[volume_col].mean()
         fig.add_shape(
             type="line",
             x0=stock_data.index[0],
@@ -306,7 +313,7 @@ def plot_stock_volume(ticker, days_to_expiry):
         st.error(f"Error generating volume chart: {str(e)}")
         return None
 
-        
+
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
     fig = make_subplots(rows=3, cols=1, 
