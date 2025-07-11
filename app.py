@@ -225,46 +225,42 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 def plot_vix_chart():
-    """Plot clean VIX line chart with proper data validation and cleaning"""
+    """Plot clean VIX line chart with guaranteed proper data formatting"""
     try:
-        # Get VIX data with 1 month buffer to ensure enough valid data points
-        vix_data = yf.download("^VIX", period="4mo", interval="1d", progress=False)
+        # Get VIX data with error handling
+        vix_data = yf.download("^VIX", period="3mo", interval="1d", progress=False)
         
-        if vix_data.empty:
-            st.warning("No VIX data available from Yahoo Finance")
+        if vix_data.empty or 'Close' not in vix_data.columns:
+            st.warning("No valid VIX data available from Yahoo Finance")
             return None
 
-        # Clean the data - drop NaN values and ensure proper types
+        # Clean and prepare the data
         clean_data = vix_data[['Close']].copy()
-        clean_data = clean_data.dropna()
-        clean_data['Close'] = pd.to_numeric(clean_data['Close'], errors='coerce')
         clean_data = clean_data.dropna()
         
         if clean_data.empty:
             st.warning("No valid VIX data available after cleaning")
             return None
 
-        # Get the most recent 3 months of clean data
-        end_date = clean_data.index.max()
-        start_date = end_date - pd.DateOffset(months=3)
-        clean_data = clean_data.loc[start_date:end_date]
+        # Convert to proper 1D format that Plotly expects
+        dates = clean_data.index.to_pydatetime()  # Convert to native Python datetime
+        values = clean_data['Close'].tolist()     # Convert to native Python list
 
-        # Create the plot with proper validation
+        # Create the plot
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
-            x=clean_data.index,
-            y=clean_data['Close'],
-            mode='lines+markers',
+            x=dates,
+            y=values,
+            mode='lines',
             line=dict(color='#1f77b4', width=2),
-            marker=dict(size=4, color='#1f77b4'),
             name='VIX',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}<extra></extra>"
         ))
         
-        # Add current level marker line if we have valid data
-        if not clean_data.empty:
-            current_vix = float(clean_data['Close'].iloc[-1])
+        # Add current level marker
+        if len(values) > 0:
+            current_vix = values[-1]
             fig.add_hline(
                 y=current_vix,
                 line=dict(color='#ff7f0e', width=1.5, dash='dot'),
@@ -272,7 +268,7 @@ def plot_vix_chart():
                 annotation_position="bottom right"
             )
         
-        # Format the layout properly
+        # Format the layout
         fig.update_layout(
             title="<b>CBOE Volatility Index (VIX)</b> - Last 3 Months",
             xaxis_title="Date",
@@ -285,8 +281,7 @@ def plot_vix_chart():
             ),
             yaxis=dict(
                 showgrid=True,
-                fixedrange=False,
-                rangemode='tozero'
+                fixedrange=False
             ),
             hovermode="x unified",
             template="plotly_white",
