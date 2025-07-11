@@ -4,6 +4,8 @@ pandas
 numpy
 scipy
 plotly
+matplotlib
+fpdf
 requests
 beautifulsoup4
 kaleido
