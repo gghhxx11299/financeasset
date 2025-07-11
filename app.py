@@ -623,9 +623,16 @@ def main():
 
                 greeks = black_scholes_greeks(S, strike_price, T, risk_free_rate, iv, option_type)
                 greeks_df = pd.DataFrame({
-                    "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
-                    "Value": [greeks["Delta"], greeks["Gamma"], greeks["Vega"], greeks["Theta"], greeks["Rho"]]
-                })
+                     "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
+                     "Value": [
+                         f"{greeks['Delta']:.4f}",
+                         f"{greeks['Gamma']:.4f}",
+                         f"{greeks['Vega']:.4f}",
+                         f"{greeks['Theta']:.4f}",
+                         f"{greeks['Rho']:.4f}"
+    ]
+})
+                st.session_state.greeks_df = greeks_df
                 greeks_df["Value"] = greeks_df["Value"].map(lambda x: f"{x:.4f}")
 
                 start = time.time()
@@ -681,7 +688,7 @@ def main():
 
                 # Generate trading advice
                 trading_advice = generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital)
-                
+                st.session_state.trading_advice = trading_advice
                 # Add warning to trading advice if IV is extreme
                 if iv_percentile and iv_percentile > 90:
                     trading_advice = pd.concat([
@@ -695,20 +702,22 @@ def main():
                 st.session_state.trading_advice = trading_advice
 
                 # Prepare summary DataFrame for export
+                # Prepare summary DataFrame for export
                 try:
-                    summary_df = pd.DataFrame({
-                        "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time"],
-                        "Value": [
-                            f"${float(price_market[0] if isinstance(price_market, np.ndarray) else price_market):.2f}", 
-                            f"${float(price[0] if isinstance(price, np.ndarray) else price):.2f}",
-                            f"{float(iv[0] if isinstance(iv, np.ndarray) else iv)*100:.2f}%", 
-                            f"${float(capital[0] if isinstance(capital, np.ndarray) else capital):.2f}", 
-                            f"{float(calc_time[0] if isinstance(calc_time, np.ndarray) else calc_time):.4f} seconds"
-                        ]
-                    })
-                except Exception as e:
-                    st.error(f"Error formatting results: {str(e)}")
-                    summary_df = pd.DataFrame()  # return empty dataframe as fallback
+                   summary_df = pd.DataFrame({
+                       "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time"],
+                       "Value": [
+                              f"${float(price_market):.2f}" if not isinstance(price_market, (np.ndarray, list)) else f"${float(price_market[0]):.2f}",
+                              f"${float(price):.2f}" if not isinstance(price, (np.ndarray, list)) else f"${float(price[0]):.2f}",
+                              f"{float(iv)*100:.2f}%" if not isinstance(iv, (np.ndarray, list)) else f"{float(iv[0])*100:.2f}%",
+                              f"${float(capital):.2f}" if not isinstance(capital, (np.ndarray, list)) else f"${float(capital[0]):.2f}",
+                              f"{float(calc_time):.4f} seconds" if not isinstance(calc_time, (np.ndarray, list)) else f"{float(calc_time[0]):.4f} seconds"
+                                ]
+                             })
+                       st.session_state.summary_info = summary_df
+               except Exception as e:
+                      st.error(f"Error creating summary: {str(e)}")
+                      st.session_state.summary_info = pd.DataFrame({"Metric": ["Error"], "Value": [str(e)]})
 
                 csv = prepare_export_csv(greeks_df, summary_df, trading_advice)
                 st.session_state.export_csv = csv
@@ -811,90 +820,52 @@ def main():
                 st.session_state.calculation_done = False
 
     # Display results and export buttons
-    if st.session_state.calculation_done:
-        st.markdown("---")
-        st.markdown("## Analysis Results")
-        
-        # Metrics in cards
-        with st.container():
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown("### Option Greeks")
+    # Display results and export buttons
+if st.session_state.calculation_done:
+    st.markdown("---")
+    st.markdown("## Analysis Results")
+    
+    # Metrics in cards
+    with st.container():
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("### Option Greeks")
+            if st.session_state.greeks_df is not None and not st.session_state.greeks_df.empty:
                 st.dataframe(st.session_state.greeks_df.style.set_properties(**{
                     'background-color': 'white',
                     'border': '1px solid #f0f0f0'
                 }), use_container_width=True)
-            
-            with col2:
-                st.markdown("### Summary Metrics")
+            else:
+                st.warning("No Greeks data available")
+        
+        with col2:
+            st.markdown("### Summary Metrics")
+            if st.session_state.summary_info is not None and not st.session_state.summary_info.empty:
                 st.dataframe(st.session_state.summary_info.style.set_properties(**{
                     'background-color': 'white',
                     'border': '1px solid #f0f0f0'
                 }), use_container_width=True)
-            
-            with col3:
-                if st.session_state.iv_percentile:
-                    st.markdown("### Volatility Context")
-                    st.metric(
-                        label="Implied Volatility Percentile",
-                        value=f"{st.session_state.iv_percentile:.0f}th percentile",
-                        help="How current IV compares to 1-year history (higher = more extreme)"
-                    )
+            else:
+                st.warning("No summary data available")
         
-        # Trading Advice
-        st.markdown("### Trading Advice")
-        with st.expander("View detailed trading recommendations"):
+        with col3:
+            if st.session_state.iv_percentile is not None:
+                st.markdown("### Volatility Context")
+                st.metric(
+                    label="Implied Volatility Percentile",
+                    value=f"{st.session_state.iv_percentile:.0f}th percentile",
+                    help="How current IV compares to 1-year history (higher = more extreme)"
+                )
+    
+    # Trading Advice
+    st.markdown("### Trading Advice")
+    with st.expander("View detailed trading recommendations"):
+        if st.session_state.trading_advice is not None and not st.session_state.trading_advice.empty:
             st.dataframe(st.session_state.trading_advice.style.set_properties(**{
                 'background-color': 'white',
                 'border': '1px solid #f0f0f0'
             }), use_container_width=True)
-        
-        # Visualizations
-        st.markdown("### Interactive Visualizations")
-        
-        # Profit vs Capital Plot
-        with st.container():
-            st.markdown("#### Profit Potential Analysis")
-            st.plotly_chart(st.session_state.plot_fig, use_container_width=True)
-        
-        # Black-Scholes Sensitivities
-        if st.session_state.bs_sensitivities_fig is not None:
-            with st.container():
-                st.markdown("#### Black-Scholes Sensitivities")
-                st.plotly_chart(st.session_state.bs_sensitivities_fig, use_container_width=True)
-        
-        # Volatility Context
-        if st.session_state.iv_crisis_fig is not None:
-            with st.container():
-                st.markdown("#### Volatility Context")
-                st.plotly_chart(st.session_state.iv_crisis_fig, use_container_width=True)
-        
-        # Export Options
-        st.markdown("---")
-        st.markdown("### Export Results")
-        with export_csv_col:
-            st.download_button(
-                label="📥 Download Data (CSV)",
-                data=st.session_state.export_csv,
-                file_name=f"{ticker}_option_data.csv",
-                mime="text/csv",
-                key="csv_export"
-            )
-
-        with export_pdf_col:
-            if st.session_state.export_pdf:
-                st.download_button(
-                    label="📄 Download Report (PDF)",
-                    data=st.session_state.export_pdf,
-                    file_name=f"{ticker}_option_report.pdf",
-                    mime="application/pdf",
-                    key="pdf_export"
-                )
-            else:
-                st.info("PDF report not available")
-
-    else:
-        st.info("Configure your option trade above and click 'Calculate Profit & Advice' to generate analysis.")
-
+        else:
+            st.warning("No trading advice available")
 if __name__ == "__main__":
     main()
