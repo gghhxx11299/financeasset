@@ -15,13 +15,18 @@ from bs4 import BeautifulSoup
 from io import StringIO
 
 
-def prepare_export_csv(greeks_df, summary_df):
-    export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
+def prepare_export_csv(greeks_df, summary_df, trading_advice):
+    # Combine all data for CSV export
+    greeks_export = greeks_df.rename(columns={"Greek": "Metric"})
+    summary_export = summary_df
+    advice_export = trading_advice.rename(columns={"Advice": "Metric", "Reason": "Value"})
+    
+    export_df = pd.concat([greeks_export, summary_export, advice_export], ignore_index=True)
     return export_df.to_csv(index=False).encode('utf-8')
 
 
-def generate_pdf_report(input_data, greeks_df, summary_df, plot_path=None, bs_plot_path=None):
-    """Generate PDF report using FPDF"""
+def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
+    """Generate PDF report using FPDF without image dependencies"""
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
@@ -54,50 +59,55 @@ def generate_pdf_report(input_data, greeks_df, summary_df, plot_path=None, bs_pl
     for _, row in summary_df.iterrows():
         pdf.cell(200, 10, f"{row['Metric']}: {row['Value']}", ln=True)
 
-    # Plot section if available
-    if plot_path and os.path.exists(plot_path):
-        pdf.ln(10)
-        pdf.set_font("Arial", 'B', size=12)
-        pdf.cell(200, 10, "Profit vs Capital Plot", ln=True)
-        try:
-            pdf.image(plot_path, x=10, w=180)
-        except Exception as e:
-            st.warning(f"Could not include plot in PDF: {e}")
+    # Trading Advice section
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', size=12)
+    pdf.cell(200, 10, "Trading Advice", ln=True)
+    pdf.set_font("Arial", size=12)
+    for _, row in trading_advice.iterrows():
+        pdf.multi_cell(200, 10, f"{row['Advice']}: {row['Reason']}")
 
-    # Black-Scholes sensitivities plot if available
-    if bs_plot_path and os.path.exists(bs_plot_path):
-        pdf.ln(10)
-        pdf.set_font("Arial", 'B', size=12)
-        pdf.cell(200, 10, "Black-Scholes Sensitivities", ln=True)
-        try:
-            pdf.image(bs_plot_path, x=10, w=180)
-        except Exception as e:
-            st.warning(f"Could not include BS sensitivities plot in PDF: {e}")
+    # Note about plots
+    pdf.ln(10)
+    pdf.set_font("Arial", 'I', size=10)
+    pdf.cell(200, 10, "Note: Interactive plots are available in the web interface", ln=True)
 
     return pdf
 
 
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
-    # Create subplots for different sensitivities
+    """Create interactive sensitivity plot for Black-Scholes model"""
     fig = go.Figure()
     
     # Price vs Underlying (S)
     S_range = np.linspace(0.5*S, 1.5*S, 50)
     prices_S = [black_scholes_price(s, K, T, r, sigma, option_type) for s in S_range]
-    fig.add_trace(go.Scatter(x=S_range, y=prices_S, name='Price vs Underlying',
-                           line=dict(color='royalblue')))
+    fig.add_trace(go.Scatter(
+        x=S_range, 
+        y=prices_S, 
+        name='Price vs Underlying',
+        line=dict(color='royalblue')
+    ))
     
     # Price vs Time (T)
     T_range = np.linspace(0.01, T*2, 50)
     prices_T = [black_scholes_price(S, K, t, r, sigma, option_type) for t in T_range]
-    fig.add_trace(go.Scatter(x=T_range*365, y=prices_T, name='Price vs Days to Expiry',
-                           line=dict(color='firebrick')))
+    fig.add_trace(go.Scatter(
+        x=T_range*365, 
+        y=prices_T, 
+        name='Price vs Days to Expiry',
+        line=dict(color='firebrick')
+    ))
     
     # Price vs Volatility (σ)
     sigma_range = np.linspace(0.01, 2*sigma, 50)
     prices_sigma = [black_scholes_price(S, K, T, r, s, option_type) for s in sigma_range]
-    fig.add_trace(go.Scatter(x=sigma_range, y=prices_sigma, name='Price vs Volatility',
-                           line=dict(color='green')))
+    fig.add_trace(go.Scatter(
+        x=sigma_range, 
+        y=prices_sigma, 
+        name='Price vs Volatility',
+        line=dict(color='green')
+    ))
     
     fig.update_layout(
         title=f'Black-Scholes Sensitivities ({option_type.capitalize()} Option)',
@@ -110,16 +120,17 @@ def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     
     # Add vertical lines for current values
     fig.add_vline(x=S, line=dict(color='royalblue', dash='dash'), 
-                 annotation_text=f'Current S={S:.2f}')
+                annotation_text=f'Current S={S:.2f}')
     fig.add_vline(x=T*365, line=dict(color='firebrick', dash='dash'), 
-                 annotation_text=f'Current T={T*365:.0f} days')
+                annotation_text=f'Current T={T*365:.0f} days')
     fig.add_vline(x=sigma, line=dict(color='green', dash='dash'), 
-                 annotation_text=f'Current σ={sigma:.2f}')
+                annotation_text=f'Current σ={sigma:.2f}')
     
     return fig
 
 
 def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital):
+    """Generate personalized trading advice based on analysis"""
     advice = []
     reasons = []
     
@@ -127,34 +138,34 @@ def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comf
     high_iv_divergence = any(d > 0.1 for d in iv_divergences.values())
     if high_iv_divergence:
         max_divergence = max(iv_divergences.values())
-        advice.append("Reduce position size due to high IV divergence")
-        reasons.append(f"IV divergence of {max_divergence:.2f} detected (threshold > 0.1). This suggests the option may be overpriced compared to sector peers.")
+        advice.append("Reduce position size")
+        reasons.append(f"High IV divergence ({max_divergence:.2f} > 0.1) suggests overpriced options relative to sector peers")
     
     # Analyze Z-score
     extreme_z = abs(latest_z) > 2
     if extreme_z:
-        advice.append("Caution: Extreme price movement detected")
-        reasons.append(f"Z-score of {latest_z:.2f} indicates the stock is trading significantly away from its recent mean (threshold > |2|). This increases reversal risk.")
+        advice.append("Exercise caution")
+        reasons.append(f"Extreme price movement (Z-score: {latest_z:.2f}) indicates potential mean reversion")
     
     # Analyze correlation
     low_correlation = correlation < 0.5
     if low_correlation:
-        advice.append("Diversify or hedge positions")
-        reasons.append(f"Low sector correlation ({correlation:.2f}) means sector ETFs aren't providing good hedges (threshold < 0.5).")
+        advice.append("Consider hedging")
+        reasons.append(f"Low sector correlation ({correlation:.2f}) reduces hedging effectiveness")
     
     # Capital adjustment analysis
     capital_ratio = capital / comfortable_capital
     if capital_ratio < 0.7:
-        advice.append("Consider significantly smaller position than usual")
-        reasons.append(f"Suggested capital ({capital:.2f}) is {capital_ratio*100:.0f}% of your comfortable amount due to multiple risk factors.")
+        advice.append("Reduce trade size significantly")
+        reasons.append(f"Suggested capital ${capital:.0f} is {capital_ratio*100:.0f}% of comfortable amount due to multiple risk factors")
     elif capital_ratio < 0.9:
-        advice.append("Consider moderately smaller position than usual")
-        reasons.append(f"Suggested capital ({capital:.2f}) is {capital_ratio*100:.0f}% of your comfortable amount due to some risk factors.")
+        advice.append("Reduce trade size moderately")
+        reasons.append(f"Suggested capital ${capital:.0f} is {capital_ratio*100:.0f}% of comfortable amount")
     
-    # If no warnings
+    # Default advice if no warnings
     if not advice:
-        advice.append("Normal trading conditions detected")
-        reasons.append("All metrics are within normal ranges - you may trade your usual size")
+        advice.append("Normal trading conditions")
+        reasons.append("All metrics within normal ranges - standard position sizing appropriate")
     
     return pd.DataFrame({
         "Advice": advice,
@@ -187,6 +198,7 @@ SECTOR_MAP = {
 
 # Pricing and Greeks functions
 def black_scholes_price(S, K, T, r, sigma, option_type="call"):
+    """Calculate Black-Scholes option price"""
     if T <= 0:
         return max(0.0, S - K) if option_type == "call" else max(0.0, K - S)
     d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
@@ -197,6 +209,7 @@ def black_scholes_price(S, K, T, r, sigma, option_type="call"):
         return K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
 def binomial_tree_price(S, K, T, r, sigma, option_type="call", steps=100):
+    """Calculate option price using binomial tree model"""
     dt = T / steps
     u = math.exp(sigma * math.sqrt(dt))
     d = 1 / u
@@ -215,6 +228,7 @@ def binomial_tree_price(S, K, T, r, sigma, option_type="call", steps=100):
     return values[0]
 
 def monte_carlo_price(S, K, T, r, sigma, option_type="call", simulations=10000):
+    """Calculate option price using Monte Carlo simulation"""
     np.random.seed(42)
     dt = T
     ST = S * np.exp((r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * np.random.randn(simulations))
@@ -226,6 +240,7 @@ def monte_carlo_price(S, K, T, r, sigma, option_type="call", simulations=10000):
     return price
 
 def black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
+    """Calculate Black-Scholes Greeks"""
     if T <= 0 or sigma == 0:
         return dict(Delta=0, Gamma=0, Vega=0, Theta=0, Rho=0)
     d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
@@ -245,6 +260,7 @@ def black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
     return dict(Delta=delta, Gamma=gamma, Vega=vega, Theta=theta, Rho=rho)
 
 def implied_volatility(option_market_price, S, K, T, r, option_type="call", tol=1e-5, max_iter=100):
+    """Calculate implied volatility using bisection method"""
     sigma_low, sigma_high = 0.0001, 5.0
     for _ in range(max_iter):
         sigma_mid = (sigma_low + sigma_high) / 2
@@ -258,6 +274,7 @@ def implied_volatility(option_market_price, S, K, T, r, option_type="call", tol=
     return None
 
 def get_option_market_price(ticker, option_type, strike, expiry_date):
+    """Fetch current market price for given option"""
     stock = yf.Ticker(ticker)
     try:
         if expiry_date not in stock.options:
@@ -270,11 +287,7 @@ def get_option_market_price(ticker, option_type, strike, expiry_date):
         return None
 
 def get_us_10yr_treasury_yield():
-    """
-    Fetches the latest 10-year Treasury yield from the official Treasury CSV dataset.
-    Returns the yield as a decimal (e.g., 0.025 for 2.5%).
-    If fetching or parsing fails, returns a fallback value of 0.025.
-    """
+    """Fetch current 10-year Treasury yield"""
     url = "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/Datasets/yield.csv"
     fallback_yield = 0.025  # fallback 2.5%
 
@@ -336,8 +349,6 @@ if "summary_info" not in st.session_state:
     st.session_state.summary_info = None
 if "plot_fig" not in st.session_state:
     st.session_state.plot_fig = None
-if "plot_path" not in st.session_state:
-    st.session_state.plot_path = None
 if "input_data" not in st.session_state:
     st.session_state.input_data = None
 if "trading_advice" not in st.session_state:
@@ -458,7 +469,8 @@ if calculate_clicked:
         })
 
         export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
-        csv = export_df.to_csv(index=False).encode('utf-8')
+        csv = prepare_export_csv(greeks_df, summary_df, trading_advice)
+        st.session_state.export_csv = csv
 
         # Calculate profit vs capital plot
         capitals = list(range(int(min_capital), int(max_capital) + 1, 100))
@@ -525,41 +537,24 @@ if calculate_clicked:
             hovermode="x unified",
             template="plotly_white"
         )
-
-        # Create matplotlib plot for PDF
-        plt.figure(figsize=(8, 5))
-        plt.plot(capitals, profits, marker='o')
-        plt.title('Profit vs Capital')
-        plt.xlabel('Capital ($)')
-        plt.ylabel('Profit ($)')
-        plt.grid(True)
-        plot_path = "profit_vs_capital.png"
-        plt.savefig(plot_path)
-        plt.close()
+        st.session_state.plot_fig = fig
 
         # Generate Black-Scholes sensitivities plot if using BS model
-        bs_plot_path = None
         if pricing_model == "Black-Scholes":
             bs_sensitivities_fig = plot_black_scholes_sensitivities(S, strike_price, T, risk_free_rate, iv, option_type)
             st.session_state.bs_sensitivities_fig = bs_sensitivities_fig
-            bs_plot_path = "bs_sensitivities.png"
-            bs_sensitivities_fig.write_image(bs_plot_path)
 
         # Generate PDF report
         try:
-            pdf = generate_pdf_report(st.session_state.input_data, greeks_df, summary_df, plot_path, bs_plot_path)
+            pdf = generate_pdf_report(st.session_state.input_data, greeks_df, summary_df, trading_advice)
             pdf_bytes = pdf.output(dest='S').encode('latin-1')
             st.session_state.export_pdf = pdf_bytes
         except Exception as e:
             st.error(f"Failed to generate PDF: {e}")
             st.session_state.export_pdf = None
         
-        # Store everything in session state
         st.session_state.greeks_df = greeks_df
         st.session_state.summary_info = summary_df
-        st.session_state.export_csv = csv
-        st.session_state.plot_fig = fig
-        st.session_state.plot_path = plot_path
         st.session_state.calculation_done = True
         st.success("Calculation done!")
 
@@ -639,16 +634,3 @@ if st.session_state.calculation_done:
 
 else:
     st.info("Click 'Calculate Profit & Advice' to generate data and export options.")
-
-# Clean up plot files if they exist
-if st.session_state.get("plot_path") and os.path.exists(st.session_state.plot_path):
-    try:
-        os.remove(st.session_state.plot_path)
-    except:
-        pass
-
-if hasattr(st.session_state, "bs_sensitivities_fig") and os.path.exists("bs_sensitivities.png"):
-    try:
-        os.remove("bs_sensitivities.png")
-    except:
-        pass
