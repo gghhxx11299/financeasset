@@ -1,5 +1,6 @@
 import os
 from fpdf import FPDF
+import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 from datetime import datetime
@@ -228,34 +229,24 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 
-def plot_volatility_comparison(ticker, current_iv):
-    """Compare VIX with stock's historical volatility"""
+def plot_iv_crisis_signal(ticker, current_iv):
+    """Show enhanced historical IV spikes and current position"""
     try:
-        # Get VIX data and stock's historical volatility
+        # Get VIX data for market-wide volatility context
         vix = yf.download("^VIX", period="1y")["Close"]
-        stock_data = yf.download(ticker, period="1y")["Close"]
-        stock_returns = stock_data.pct_change().dropna()
-        stock_volatility = stock_returns.rolling(21).std() * np.sqrt(252) * 100  # Annualized percentage
         
-        # Create plot
+        # Create plot with custom colors
         fig = go.Figure()
         
-        # Add VIX
+        # Add VIX with solid color fill
         fig.add_trace(go.Scatter(
             x=vix.index,
             y=vix,
-            name="VIX (Market Volatility)",
+            name="Market Volatility (VIX)",
             line=dict(color="#6a11cb", width=2),
+            fill='tozeroy',
+            fillcolor='rgba(106, 17, 203, 0.3)',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}%<extra></extra>"
-        ))
-        
-        # Add Stock Volatility
-        fig.add_trace(go.Scatter(
-            x=stock_volatility.index,
-            y=stock_volatility,
-            name=f"{ticker} Volatility",
-            line=dict(color="#ff4757", width=2),
-            hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>Volatility</b>: %{y:.2f}%<extra></extra>"
         ))
         
         # Add current IV level
@@ -271,9 +262,30 @@ def plot_volatility_comparison(ticker, current_iv):
             )
         )
         
+        # Add crisis periods
+        crisis_periods = {
+            "COVID Crash": pd.Timestamp("2020-03-16"),
+            "Dec 2018 Selloff": pd.Timestamp("2018-12-24"),
+            "Feb 2018 Volmageddon": pd.Timestamp("2018-02-05")
+        }
+        
+        for name, date in crisis_periods.items():
+            if date >= vix.index.min() and date <= vix.index.max():
+                fig.add_vline(
+                    x=date,
+                    line=dict(color="#ffa502", width=2, dash="dash"),
+                    annotation=dict(
+                        text=name,
+                        font=dict(color="#ffa502", size=10),
+                        bgcolor="white",
+                        bordercolor="#ffa502",
+                        borderwidth=1
+                    )
+                )
+        
         fig.update_layout(
-            title=f"<b>Volatility Comparison: VIX vs {ticker}</b>",
-            yaxis_title="Volatility (%)",
+            title=f"<b>Volatility Context for {ticker}</b>",
+            yaxis_title="Volatility Index (VIX)",
             xaxis_title="Date",
             hovermode="x unified",
             template="plotly_white",
@@ -305,7 +317,7 @@ def plot_volatility_comparison(ticker, current_iv):
         
         return fig
     except Exception as e:
-        st.warning(f"Could not generate volatility comparison plot: {e}")
+        st.warning(f"Could not generate volatility plot: {e}")
         return None
 
 # --- Trading Advice ---
@@ -445,6 +457,7 @@ def prepare_export_csv(greeks_df, summary_df, trading_advice):
     
     export_df = pd.concat([greeks_export, summary_export, advice_export], ignore_index=True)
     return export_df.to_csv(index=False).encode('utf-8')
+
 def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     """Generate PDF report using FPDF"""
     pdf = FPDF()
@@ -455,7 +468,7 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     pdf.set_font("Arial", 'B', size=14)
     pdf.cell(200, 10, "Options Analysis Report", ln=True, align='C')
     pdf.ln(10)
-
+    
     # Inputs section
     pdf.set_font("Arial", 'B', size=12)
     pdf.cell(200, 10, "Input Parameters", ln=True)
@@ -469,14 +482,7 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     pdf.cell(200, 10, "Greeks", ln=True)
     pdf.set_font("Arial", size=12)
     for _, row in greeks_df.iterrows():
-        greek = row['Greek']
-        value = row['Value']
-        # Ensure value is a float, not a numpy array
-        if isinstance(value, np.ndarray):
-            value = float(value.item())
-        else:
-            value = float(value)
-        pdf.cell(200, 10, f"{greek}: {value:.4f}", ln=True)
+        pdf.cell(200, 10, f"{row['Greek']}: {row['Value']}", ln=True)
 
     # Summary section
     pdf.ln(5)
@@ -502,29 +508,310 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     return pdf
 
 # --- Streamlit UI ---
-# ... [previous imports remain the same]
-
 def main():
-    # [Previous code remains the same until Greeks calculation]
-    
-    # Calculate Greeks - with proper float conversion
-    greeks = black_scholes_greeks(S, strike_price, T, risk_free_rate, iv, option_type)
-    greeks_df = pd.DataFrame({
-        "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
-        "Value": [
-            float(greeks['Delta']),  # Explicit float conversion
-            float(greeks['Gamma']),
-            float(greeks['Vega']),
-            float(greeks['Theta']),
-            float(greeks['Rho'])
-        ]
-    })
-    st.session_state.greeks_df = greeks_df
+    st.title("Options Profit & Capital Advisor")
 
-    # [Rest of your calculation code]
+    # Initialize session state variables
+    if "calculation_done" not in st.session_state:
+        st.session_state.calculation_done = False
+    if "export_csv" not in st.session_state:
+        st.session_state.export_csv = None
+    if "export_pdf" not in st.session_state:
+        st.session_state.export_pdf = None
+    if "greeks_df" not in st.session_state:
+        st.session_state.greeks_df = None
+    if "summary_info" not in st.session_state:
+        st.session_state.summary_info = None
+    if "plot_fig" not in st.session_state:
+        st.session_state.plot_fig = None
+    if "input_data" not in st.session_state:
+        st.session_state.input_data = None
+    if "trading_advice" not in st.session_state:
+        st.session_state.trading_advice = None
+    if "bs_sensitivities_fig" not in st.session_state:
+        st.session_state.bs_sensitivities_fig = None
+    if "iv_percentile" not in st.session_state:
+        st.session_state.iv_percentile = None
+    if "iv_crisis_fig" not in st.session_state:
+        st.session_state.iv_crisis_fig = None
 
-    # Display section - with safe formatting
-    if st.session_state.get('calculation_done', False):
+    # Input widgets
+    st.markdown("### Input Parameters")
+    with st.expander("Configure your option trade"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
+            option_type = st.selectbox("Option Type", ["call", "put"])
+            strike_price = st.number_input("Strike Price", min_value=0.0, value=150.0)
+            days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
+            risk_free_rate = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=0.025)
+            sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
+            
+        with col2:
+            return_type = st.selectbox("Return Type", ["Simple", "Log"])
+            comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
+            max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
+            min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
+            pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
+
+    # Calculation button
+    st.markdown("---")
+    calculate_clicked = st.button("Calculate Profit & Advice", key="calculate")
+
+    # When Calculate button is pressed
+    if calculate_clicked:
+        with st.spinner("Calculating option values and generating advice..."):
+            try:
+                # Store input data for PDF report
+                st.session_state.input_data = {
+                    "Stock Ticker": ticker,
+                    "Option Type": option_type,
+                    "Strike Price": strike_price,
+                    "Days to Expiry": days_to_expiry,
+                    "Risk-Free Rate": risk_free_rate,
+                    "Sector": sector,
+                    "Return Type": return_type,
+                    "Comfortable Capital": comfortable_capital,
+                    "Max Capital": max_capital,
+                    "Min Capital": min_capital,
+                    "Pricing Model": pricing_model
+                }
+
+                # Fetch live treasury yield
+                live_rate = get_us_10yr_treasury_yield()
+                if live_rate is not None:
+                    risk_free_rate = live_rate
+
+                T = days_to_expiry / 365
+                stock_data = yf.Ticker(ticker).history(period="1d")
+                if stock_data.empty:
+                    st.error("Could not fetch stock data. Please check the ticker symbol.")
+                    st.session_state.calculation_done = False
+                    return
+                
+                S = stock_data["Close"].iloc[-1]
+
+                # Find closest expiry date
+                options_expiries = yf.Ticker(ticker).options
+                expiry_date = None
+                for date in options_expiries:
+                    dt = datetime.strptime(date, "%Y-%m-%d")
+                    diff_days = abs((dt - datetime.now()).days - days_to_expiry)
+                    if diff_days <= 5:
+                        expiry_date = date
+                        break
+
+                if expiry_date is None:
+                    st.error("No matching expiry date found near the specified days to expiry.")
+                    st.session_state.calculation_done = False
+                    return
+
+                # Get market price and implied volatility
+                price_market = get_option_market_price(ticker, option_type, strike_price, expiry_date)
+                if price_market is None:
+                    st.error("Failed to fetch option market price. Try a closer-to-the-money strike.")
+                    st.session_state.calculation_done = False
+                    return
+
+                iv = implied_volatility(price_market, S, strike_price, T, risk_free_rate, option_type)
+                if iv is None:
+                    st.error("Could not compute implied volatility. Try a closer-to-the-money strike.")
+                    st.session_state.calculation_done = False
+                    return
+
+                # Calculate Greeks
+                greeks = black_scholes_greeks(S, strike_price, T, risk_free_rate, iv, option_type)
+                greeks_df = pd.DataFrame({
+                    "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
+                    "Value": [
+                        greeks['Delta'],
+                        greeks['Gamma'],
+                        greeks['Vega'],
+                        greeks['Theta'],
+                        greeks['Rho']
+                    ]
+                })
+                st.session_state.greeks_df = greeks_df
+
+                # Calculate option price using selected model
+                start = time.time()
+                if pricing_model == "Black-Scholes":
+                    price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
+                elif pricing_model == "Binomial Tree":
+                    price = binomial_tree_price(S, strike_price, T, risk_free_rate, iv, option_type)
+                elif pricing_model == "Monte Carlo":
+                    price = monte_carlo_price(S, strike_price, T, risk_free_rate, iv, option_type)
+                else:
+                    price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
+                end = time.time()
+                calc_time = end - start
+
+                # Sector analysis
+                etfs = SECTOR_MAP.get(sector, [])
+                symbols = [ticker] + etfs
+                df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
+
+                if return_type == "Log":
+                    returns = (df / df.shift(1)).apply(np.log).dropna()
+                else:
+                    returns = df.pct_change().dropna()
+
+                # Z-score calculation
+                window = 20
+                zscore = ((df[ticker] - df[ticker].rolling(window).mean()) / df[ticker].rolling(window).std()).dropna()
+                latest_z = zscore.iloc[-1] if not zscore.empty else 0
+
+                # Correlation analysis
+                correlation = returns.corr().loc[ticker].drop(ticker).mean()
+                iv_divergences = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
+
+                # Capital adjustment logic
+                capital = comfortable_capital
+                if any(d > 0.1 for d in iv_divergences.values()):
+                    capital *= 0.6
+                if abs(latest_z) > 2:
+                    capital *= 0.7
+                if correlation < 0.5:
+                    capital *= 0.8
+
+                capital = max(min_capital, min(max_capital, capital))
+
+                # IV percentile analysis
+                iv_percentile = calculate_iv_percentile(ticker, iv)
+                st.session_state.iv_percentile = iv_percentile
+                
+                # Crisis signal plot
+                iv_crisis_fig = plot_iv_crisis_signal(ticker, iv)
+                st.session_state.iv_crisis_fig = iv_crisis_fig
+
+                # Generate trading advice
+                trading_advice = generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital)
+                
+                # Add warning if IV is extreme
+                if iv_percentile and iv_percentile > 90:
+                    trading_advice = pd.concat([
+                        trading_advice,
+                        pd.DataFrame({
+                            "Advice": ["⚠️ Market Stress Warning"],
+                            "Reason": [f"IV is in top {100-iv_percentile:.0f}% of historical levels - possible crisis ahead"]
+                        })
+                    ])
+                
+                st.session_state.trading_advice = trading_advice
+
+                # Prepare summary DataFrame
+                summary_df = pd.DataFrame({
+                    "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time"],
+                    "Value": [
+                        f"${float(price_market):.2f}",
+                        f"${float(price):.2f}",
+                        f"{float(iv)*100:.2f}%",
+                        f"${float(capital):.2f}",
+                        f"{float(calc_time):.4f} seconds"
+                    ]
+                })
+                st.session_state.summary_info = summary_df
+
+                # Prepare CSV export
+                csv = prepare_export_csv(greeks_df, summary_df, trading_advice)
+                st.session_state.export_csv = csv
+
+                # Profit vs capital plot
+                capitals = list(range(int(min_capital), int(max_capital) + 1, 100))
+                profits = []
+                profits_ci_lower = []
+                profits_ci_upper = []
+
+                if pricing_model == "Monte Carlo":
+                    simulations = 10000
+                    np.random.seed(42)
+                    dt = T
+                    ST = S * np.exp((risk_free_rate - 0.5 * iv**2) * dt + iv * np.sqrt(dt) * np.random.randn(simulations))
+                    if option_type == "call":
+                        payoffs = np.maximum(ST - strike_price, 0)
+                    else:
+                        payoffs = np.maximum(strike_price - ST, 0)
+                    discounted_payoffs = np.exp(-risk_free_rate * T) * payoffs
+                    price_samples = discounted_payoffs
+
+                    for cap in capitals:
+                        contracts = int(cap / (price * 100)) if price > 0 else 0
+                        profits_samples = contracts * 100 * (price_samples * 1.05 - price_samples)
+                        mean_profit = profits_samples.mean()
+                        std_profit = profits_samples.std()
+                        ci_lower = mean_profit - 1.96 * std_profit / np.sqrt(simulations)
+                        ci_upper = mean_profit + 1.96 * std_profit / np.sqrt(simulations)
+                        profits.append(mean_profit)
+                        profits_ci_lower.append(ci_lower)
+                        profits_ci_upper.append(ci_upper)
+                else:
+                    for cap in capitals:
+                        contracts = int(cap / (price * 100)) if price > 0 else 0
+                        profit = contracts * 100 * (price * 1.05 - price)
+                        profits.append(profit)
+
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=capitals,
+                    y=profits,
+                    mode='lines+markers',
+                    name='Expected Profit',
+                    line=dict(color='#4CAF50', width=2),
+                    marker=dict(size=8, color='#4CAF50'),
+                    hovertemplate='<b>Capital</b>: $%{x:,.0f}<br><b>Profit</b>: $%{y:,.2f}<extra></extra>',
+                ))
+
+                if pricing_model == "Monte Carlo":
+                    fig.add_trace(go.Scatter(
+                        x=capitals + capitals[::-1],
+                        y=profits_ci_upper + profits_ci_lower[::-1],
+                        fill='toself',
+                        fillcolor='rgba(76, 175, 80, 0.2)',
+                        line=dict(color='rgba(255,255,255,0)'),
+                        hoverinfo="skip",
+                        showlegend=True,
+                        name="95% Confidence Interval",
+                    ))
+
+                fig.update_layout(
+                    title=f"<b>Expected Profit vs Capital for {ticker} {option_type.capitalize()} Option</b>",
+                    xaxis_title="Capital Invested ($)",
+                    yaxis_title="Expected Profit ($)",
+                    hovermode="x unified",
+                    template="plotly_white",
+                    height=500,
+                    margin=dict(l=50, r=50, b=50, t=80),
+                    title_font=dict(size=18, color="#2c3e50"),
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    xaxis=dict(showgrid=True, gridcolor='#f0f0f0'),
+                    yaxis=dict(showgrid=True, gridcolor='#f0f0f0')
+                )
+                st.session_state.plot_fig = fig
+
+                # Generate Black-Scholes sensitivities plot if using BS model
+                if pricing_model == "Black-Scholes":
+                    bs_sensitivities_fig = plot_black_scholes_sensitivities(S, strike_price, T, risk_free_rate, iv, option_type)
+                    st.session_state.bs_sensitivities_fig = bs_sensitivities_fig
+
+                # Generate PDF report
+                try:
+                    pdf = generate_pdf_report(st.session_state.input_data, greeks_df, summary_df, trading_advice)
+                    pdf_bytes = pdf.output(dest='S').encode('latin-1')
+                    st.session_state.export_pdf = pdf_bytes
+                except Exception as e:
+                    st.error(f"Failed to generate PDF: {e}")
+                    st.session_state.export_pdf = None
+                
+                st.session_state.calculation_done = True
+                st.success("Calculation complete!")
+
+            except Exception as e:
+                st.error(f"Calculation failed: {str(e)}")
+                st.session_state.calculation_done = False
+
+    # Display results if calculation is done
+    if st.session_state.calculation_done:
         st.markdown("---")
         st.markdown("## Analysis Results")
         
@@ -534,19 +821,10 @@ def main():
             with col1:
                 st.markdown("### Option Greeks")
                 if st.session_state.greeks_df is not None:
-                    # Safe conversion of values
-                    display_df = st.session_state.greeks_df.copy()
-                    display_df['Value'] = display_df['Value'].apply(
-                        lambda x: float(x.item()) if isinstance(x, np.ndarray) else float(x)
-                    )
-                    
-                    st.dataframe(
-                        display_df.style.format({"Value": "{:.4f}"}, na_rep="N/A").set_properties(**{
-                            'background-color': 'white',
-                            'border': '1px solid #f0f0f0'
-                        }), 
-                        use_container_width=True
-                    )
+                    st.dataframe(st.session_state.greeks_df.style.format({"Value": "{:.4f}"}).set_properties(**{
+                        'background-color': 'white',
+                        'border': '1px solid #f0f0f0'
+                    }), use_container_width=True)
             
             with col2:
                 st.markdown("### Summary Metrics")
@@ -561,7 +839,7 @@ def main():
                     st.markdown("### Volatility Context")
                     st.metric(
                         label="Implied Volatility Percentile",
-                        value=f"{float(st.session_state.iv_percentile):.0f}th percentile",
+                        value=f"{st.session_state.iv_percentile:.0f}th percentile",
                         help="How current IV compares to 1-year history (higher = more extreme)"
                     )
         
@@ -578,8 +856,8 @@ def main():
         if st.session_state.plot_fig is not None:
             st.plotly_chart(st.session_state.plot_fig, use_container_width=True)
         
-        if st.session_state.volatility_comparison_fig is not None:
-            st.plotly_chart(st.session_state.volatility_comparison_fig, use_container_width=True)
+        if st.session_state.iv_crisis_fig is not None:
+            st.plotly_chart(st.session_state.iv_crisis_fig, use_container_width=True)
         
         if st.session_state.bs_sensitivities_fig is not None:
             st.plotly_chart(st.session_state.bs_sensitivities_fig, use_container_width=True)
