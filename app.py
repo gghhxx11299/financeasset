@@ -183,7 +183,7 @@ if st.button("Calculate Profit & Advice"):
 
         st.write("### Greeks")
         st.table(greeks_df)
-          )
+          
 
         if pricing_model == "Black-Scholes":
             price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
