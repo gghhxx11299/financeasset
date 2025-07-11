@@ -12,6 +12,7 @@ import time
 import io
 import base64
 import plotly.graph_objs as go
+import plotly.io as pio 
 
 # --- Sector ETFs ---
 SECTOR_MAP = {
@@ -340,33 +341,45 @@ if st.button("Calculate Profit & Advice"):
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # --- Export Greeks & Summary CSV ---
         summary_df = pd.DataFrame({
-            "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time (seconds)"],
-            "Value": [f"{price_market:.2f}", f"{price:.2f}", f"{iv*100:.2f}%", f"{capital:.2f}", f"{calc_time:.4f}"]
-        })
-        export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
-        csv = export_df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download Greeks & Summary CSV",
-            data=csv,
-            file_name=f"{ticker}_option_analysis.csv",
-            mime="text/csv"
-        )
+    "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time (seconds)"],
+    "Value": [f"{price_market:.2f}", f"{price:.2f}", f"{iv*100:.2f}%", f"{capital:.2f}", f"{calc_time:.4f}"]
+})
+export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
+csv = export_df.to_csv(index=False).encode('utf-8')
+st.download_button(
+    label="📄 Download Greeks & Summary CSV",
+    data=csv,
+    file_name=f"{ticker}_option_analysis.csv",
+    mime="text/csv"
+)
 
-        # --- Export Profit vs Capital Plot PNG ---
-        png_bytes = fig.to_image(format="png")
-        st.download_button(
-            label="Download Profit vs Capital Plot (PNG)",
-            data=png_bytes,
-            file_name=f"{ticker}_profit_vs_capital.png",
-            mime="image/png"
-        )
+# --- Export Profit vs Capital Plot PNG ---
+try:
+    png_bytes = pio.to_image(fig, format="png")  # requires kaleido
+    st.download_button(
+        label="📊 Download Profit vs Capital Plot (PNG)",
+        data=png_bytes,
+        file_name=f"{ticker}_profit_vs_capital.png",
+        mime="image/png"
+    )
+except Exception as e:
+    st.warning(f"Could not generate profit plot image: {e}")
 
-        # --- Implied Volatility Surface Plot ---
-        ticker_obj = yf.Ticker(ticker)
-        expiries = ticker_obj.options[:3]  # next 3 expiry dates
-
+# --- Implied Volatility Surface Plot PNG Export ---
+try:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+    buf = io.BytesIO()
+    fig3d.savefig(buf, format="png")
+    buf.seek(0)
+    st.download_button(
+        label="🌀 Download Implied Volatility Surface Plot (PNG)",
+        data=buf,
+        file_name=f"{ticker}_iv_surface.png",
+        mime="image/png"
+    )
+except Exception as e:
+    st.warning(f"Could not export IV surface image: {e}")
         iv_surface_data = []
         strikes_set = set()
         for exp in expiries:
