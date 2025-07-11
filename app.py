@@ -14,6 +14,14 @@ import requests
 import pandas as pd
 from io import StringIO
 
+def prepare_export_csv(greeks_df, summary_df):
+    export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
+    return export_df.to_csv(index=False).encode('utf-8')
+
+def prepare_export_png(fig):
+    return fig.to_image(format="png")
+
+
 
 # --- Sector ETFs ---
 SECTOR_MAP = {
@@ -404,6 +412,7 @@ if calculate_clicked:
     except Exception as e:
         st.error(f"An error occurred: {e}")
         st.session_state.calculation_done = False
+   
 
 # Export buttons - enabled only after calculation
 with export_csv_col:
