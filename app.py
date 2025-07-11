@@ -224,80 +224,49 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     except Exception as e:
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
-
 def plot_vix_chart():
-    """Plot VIX chart only"""
+    """Plot simple VIX line chart"""
     try:
+        # Get VIX data
         vix = yf.download("^VIX", period="1y")["Close"]
         
+        # Create basic line chart
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
             x=vix.index,
             y=vix,
-            name="Market Volatility (VIX)",
-            line=dict(color="#6a11cb", width=2),
-            fill='tozeroy',
-            fillcolor='rgba(106, 17, 203, 0.3)',
-            hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}%<extra></extra>"
+            mode='lines',
+            name="VIX",
+            line=dict(color='blue', width=2),
+            hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}<extra></extra>"
         ))
         
-        crisis_periods = {
-            "COVID Crash": pd.Timestamp("2020-03-16"),
-            "Dec 2018 Selloff": pd.Timestamp("2018-12-24"),
-            "Feb 2018 Volmageddon": pd.Timestamp("2018-02-05")
-        }
-        
-        for name, date in crisis_periods.items():
-            if date >= vix.index.min() and date <= vix.index.max():
-                fig.add_vline(
-                    x=date,
-                    line=dict(color="#ffa502", width=2, dash="dash"),
-                    annotation=dict(
-                        text=name,
-                        font=dict(color="#ffa502", size=10),
-                        bgcolor="white",
-                        bordercolor="#ffa502",
-                        borderwidth=1
-                    )
-                )
-        
-        fig.update_layout(
-            title="<b>Market Volatility (VIX)</b>",
-            yaxis_title="Volatility Index (VIX)",
-            xaxis_title="Date",
-            hovermode="x unified",
-            template="plotly_white",
-            height=500,
-            margin=dict(l=50, r=50, b=50, t=80),
-            title_font=dict(size=18, color="#2c3e50"),
-            plot_bgcolor='rgba(0,0,0,0)',
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
+        # Add horizontal line at current VIX level
+        current_vix = vix.iloc[-1]
+        fig.add_hline(
+            y=current_vix,
+            line=dict(color='red', width=1, dash='dot'),
+            annotation_text=f"Current: {current_vix:.2f}",
+            annotation_position="bottom right"
         )
         
-        fig.update_xaxes(
-            rangeslider_visible=True,
-            rangeselector=dict(
-                buttons=list([
-                    dict(count=1, label="1m", step="month", stepmode="backward"),
-                    dict(count=3, label="3m", step="month", stepmode="backward"),
-                    dict(count=6, label="6m", step="month", stepmode="backward"),
-                    dict(step="all")
-                ])
-            )
+        # Basic layout
+        fig.update_layout(
+            title="<b>VIX - Market Volatility Index</b>",
+            yaxis_title="VIX Value",
+            xaxis_title="Date",
+            hovermode="x",
+            template="plotly_white",
+            height=400,
+            margin=dict(l=50, r=50, b=50, t=50),
+            showlegend=False
         )
         
         return fig
     except Exception as e:
         st.warning(f"Could not generate VIX plot: {e}")
         return None
-
 # --- Trading Advice ---
 def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital):
     """Generate personalized trading advice based on analysis"""
