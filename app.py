@@ -224,47 +224,54 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     except Exception as e:
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
-
 def plot_stock_volume(ticker, days_to_expiry):
     """Plot stock trading volume for the option's time frame"""
     try:
-        # Get stock data for the option's time period
-        stock_data = yf.download(ticker, period=f"{days_to_expiry}d", progress=False)
-        
-        if stock_data.empty:
+        # Fetch stock data
+        stock_data = yf.download(ticker, period=f"{days_to_expiry}d", interval="1d", progress=False)
+
+        # Check if data is valid
+        if stock_data.empty or 'Volume' not in stock_data.columns:
             st.warning(f"No volume data available for {ticker}")
             return None
 
-        # Extract volume data as Series
-        volume = stock_data['Volume']
-        
-        if volume.empty:
-            st.warning(f"No trading volume data available for {ticker}")
+        # Clean and ensure datetime index
+        stock_data = stock_data.dropna(subset=['Volume'])
+        if not isinstance(stock_data.index, pd.DatetimeIndex):
+            st.warning("Stock data index is not datetime type")
             return None
 
-        # Create volume bar chart
+        # Extract volume series
+        volume = stock_data['Volume']
+        dates = stock_data.index.to_pydatetime()
+        values = volume.values
+        avg_volume = float(volume.mean())
+
+        # Create the plot
         fig = go.Figure()
-        
+
+        # Add volume bars
         fig.add_trace(go.Bar(
-            x=volume.index,
-            y=volume.values,
+            x=dates,
+            y=values,
             name='Volume',
             marker_color='#1f77b4',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>Volume</b>: %{y:,.0f}<extra></extra>"
         ))
-        
+
         # Add average volume line
-        avg_volume = float(volume.mean())
         fig.add_shape(
             type="line",
-            x0=volume.index.min(),
-            x1=volume.index.max(),
+            x0=dates[0],
+            x1=dates[-1],
             y0=avg_volume,
             y1=avg_volume,
             line=dict(color='#ff7f0e', width=1.5, dash='dot')
         )
+
+        # Add annotation for average
         fig.add_annotation(
-            x=volume.index.max(),
+            x=dates[-1],
             y=avg_volume,
             text=f"Avg: {avg_volume:,.0f}",
             showarrow=False,
@@ -273,9 +280,9 @@ def plot_stock_volume(ticker, days_to_expiry):
             font=dict(color="#ff7f0e")
         )
 
-        # Format the layout
+        # Layout settings
         fig.update_layout(
-            title=f"<b>{ticker} Trading Volume</b> - Last {days_to_expiry} Days",
+            title=f"<b>{ticker.upper()} Trading Volume</b> - Last {days_to_expiry} Days",
             xaxis_title="Date",
             yaxis_title="Volume (Shares)",
             xaxis=dict(
@@ -293,12 +300,13 @@ def plot_stock_volume(ticker, days_to_expiry):
             margin=dict(l=50, r=50, b=50, t=80),
             showlegend=False
         )
-        
+
         return fig
-        
+
     except Exception as e:
         st.error(f"Error generating volume chart: {str(e)}")
         return None
+
 
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
