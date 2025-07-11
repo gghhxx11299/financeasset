@@ -20,7 +20,7 @@ def prepare_export_csv(greeks_df, summary_df):
     return export_df.to_csv(index=False).encode('utf-8')
 
 
-def generate_pdf_report(input_data, greeks_df, summary_df, plot_path=None):
+def generate_pdf_report(input_data, greeks_df, summary_df, plot_path=None, bs_plot_path=None):
     """Generate PDF report using FPDF"""
     pdf = FPDF()
     pdf.add_page()
@@ -64,7 +64,102 @@ def generate_pdf_report(input_data, greeks_df, summary_df, plot_path=None):
         except Exception as e:
             st.warning(f"Could not include plot in PDF: {e}")
 
+    # Black-Scholes sensitivities plot if available
+    if bs_plot_path and os.path.exists(bs_plot_path):
+        pdf.ln(10)
+        pdf.set_font("Arial", 'B', size=12)
+        pdf.cell(200, 10, "Black-Scholes Sensitivities", ln=True)
+        try:
+            pdf.image(bs_plot_path, x=10, w=180)
+        except Exception as e:
+            st.warning(f"Could not include BS sensitivities plot in PDF: {e}")
+
     return pdf
+
+
+def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
+    # Create subplots for different sensitivities
+    fig = go.Figure()
+    
+    # Price vs Underlying (S)
+    S_range = np.linspace(0.5*S, 1.5*S, 50)
+    prices_S = [black_scholes_price(s, K, T, r, sigma, option_type) for s in S_range]
+    fig.add_trace(go.Scatter(x=S_range, y=prices_S, name='Price vs Underlying',
+                           line=dict(color='royalblue')))
+    
+    # Price vs Time (T)
+    T_range = np.linspace(0.01, T*2, 50)
+    prices_T = [black_scholes_price(S, K, t, r, sigma, option_type) for t in T_range]
+    fig.add_trace(go.Scatter(x=T_range*365, y=prices_T, name='Price vs Days to Expiry',
+                           line=dict(color='firebrick')))
+    
+    # Price vs Volatility (σ)
+    sigma_range = np.linspace(0.01, 2*sigma, 50)
+    prices_sigma = [black_scholes_price(S, K, T, r, s, option_type) for s in sigma_range]
+    fig.add_trace(go.Scatter(x=sigma_range, y=prices_sigma, name='Price vs Volatility',
+                           line=dict(color='green')))
+    
+    fig.update_layout(
+        title=f'Black-Scholes Sensitivities ({option_type.capitalize()} Option)',
+        xaxis_title='Parameter Value',
+        yaxis_title='Option Price',
+        hovermode='x unified',
+        template='plotly_white',
+        height=500
+    )
+    
+    # Add vertical lines for current values
+    fig.add_vline(x=S, line=dict(color='royalblue', dash='dash'), 
+                 annotation_text=f'Current S={S:.2f}')
+    fig.add_vline(x=T*365, line=dict(color='firebrick', dash='dash'), 
+                 annotation_text=f'Current T={T*365:.0f} days')
+    fig.add_vline(x=sigma, line=dict(color='green', dash='dash'), 
+                 annotation_text=f'Current σ={sigma:.2f}')
+    
+    return fig
+
+
+def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital):
+    advice = []
+    reasons = []
+    
+    # Analyze IV divergence
+    high_iv_divergence = any(d > 0.1 for d in iv_divergences.values())
+    if high_iv_divergence:
+        max_divergence = max(iv_divergences.values())
+        advice.append("Reduce position size due to high IV divergence")
+        reasons.append(f"IV divergence of {max_divergence:.2f} detected (threshold > 0.1). This suggests the option may be overpriced compared to sector peers.")
+    
+    # Analyze Z-score
+    extreme_z = abs(latest_z) > 2
+    if extreme_z:
+        advice.append("Caution: Extreme price movement detected")
+        reasons.append(f"Z-score of {latest_z:.2f} indicates the stock is trading significantly away from its recent mean (threshold > |2|). This increases reversal risk.")
+    
+    # Analyze correlation
+    low_correlation = correlation < 0.5
+    if low_correlation:
+        advice.append("Diversify or hedge positions")
+        reasons.append(f"Low sector correlation ({correlation:.2f}) means sector ETFs aren't providing good hedges (threshold < 0.5).")
+    
+    # Capital adjustment analysis
+    capital_ratio = capital / comfortable_capital
+    if capital_ratio < 0.7:
+        advice.append("Consider significantly smaller position than usual")
+        reasons.append(f"Suggested capital ({capital:.2f}) is {capital_ratio*100:.0f}% of your comfortable amount due to multiple risk factors.")
+    elif capital_ratio < 0.9:
+        advice.append("Consider moderately smaller position than usual")
+        reasons.append(f"Suggested capital ({capital:.2f}) is {capital_ratio*100:.0f}% of your comfortable amount due to some risk factors.")
+    
+    # If no warnings
+    if not advice:
+        advice.append("Normal trading conditions detected")
+        reasons.append("All metrics are within normal ranges - you may trade your usual size")
+    
+    return pd.DataFrame({
+        "Advice": advice,
+        "Reason": reasons
+    })
 
 
 # --- Sector ETFs ---
@@ -205,79 +300,6 @@ def get_us_10yr_treasury_yield():
     except Exception:
         return fallback_yield
 
-# Add this function to generate trading advice
-def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital):
-    advice = []
-    reasons = []
-    
-    # Analyze IV divergence
-    high_iv_divergence = any(d > 0.1 for d in iv_divergences.values())
-    if high_iv_divergence:
-        max_divergence = max(iv_divergences.values())
-        advice.append("Reduce position size due to high IV divergence")
-        reasons.append(f"IV divergence of {max_divergence:.2f} detected (threshold > 0.1). This suggests the option may be overpriced compared to sector peers.")
-    
-    # Analyze Z-score
-    extreme_z = abs(latest_z) > 2
-    if extreme_z:
-        advice.append("Caution: Extreme price movement detected")
-        reasons.append(f"Z-score of {latest_z:.2f} indicates the stock is trading significantly away from its recent mean (threshold > |2|). This increases reversal risk.")
-    
-    # Analyze correlation
-    low_correlation = correlation < 0.5
-    if low_correlation:
-        advice.append("Diversify or hedge positions")
-        reasons.append(f"Low sector correlation ({correlation:.2f}) means sector ETFs aren't providing good hedges (threshold < 0.5).")
-    
-    # Capital adjustment analysis
-    capital_ratio = capital / comfortable_capital
-    if capital_ratio < 0.7:
-        advice.append("Consider significantly smaller position than usual")
-        reasons.append(f"Suggested capital ({capital:.2f}) is {capital_ratio*100:.0f}% of your comfortable amount due to multiple risk factors.")
-    elif capital_ratio < 0.9:
-        advice.append("Consider moderately smaller position than usual")
-        reasons.append(f"Suggested capital ({capital:.2f}) is {capital_ratio*100:.0f}% of your comfortable amount due to some risk factors.")
-    
-    # If no warnings
-    if not advice:
-        advice.append("Normal trading conditions detected")
-        reasons.append("All metrics are within normal ranges - you may trade your usual size")
-    
-    return pd.DataFrame({
-        "Advice": advice,
-        "Reason": reasons
-    })
-
-# In your calculation section, after computing all metrics but before displaying results, add:
-trading_advice = generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital)
-st.session_state.trading_advice = trading_advice
-
-# In your results display section (after the Summary section), add:
-if st.session_state.calculation_done:
-    # ... existing code ...
-    
-    st.subheader("Trading Advice")
-    st.dataframe(st.session_state.trading_advice)
-    
-    # Add explanation of metrics
-    with st.expander("Understanding the Advice"):
-        st.markdown("""
-        **How we determine trading advice:**
-        
-        - **IV Divergence**: Measures how different this option's implied volatility is from sector peers.  
-          *> 0.1 suggests overpriced options*
-          
-        - **Z-Score**: Shows how far the stock price is from its recent average.  
-          *> |2| suggests overextended move*
-          
-        - **Sector Correlation**: Measures how well sector ETFs hedge this stock.  
-          *< 0.5 suggests poor hedging*
-          
-        - **Capital Adjustment**: Compares suggested capital to your comfortable amount.  
-          *< 70% suggests high risk environment*
-        """)
-        
-
 # --- Streamlit UI ---
 st.title("Options Profit & Capital Advisor")
 
@@ -318,6 +340,10 @@ if "plot_path" not in st.session_state:
     st.session_state.plot_path = None
 if "input_data" not in st.session_state:
     st.session_state.input_data = None
+if "trading_advice" not in st.session_state:
+    st.session_state.trading_advice = None
+if "bs_sensitivities_fig" not in st.session_state:
+    st.session_state.bs_sensitivities_fig = None
 
 # When Calculate button is pressed, run calculations and save results in session_state
 if calculate_clicked:
@@ -421,6 +447,10 @@ if calculate_clicked:
 
         capital = max(min_capital, min(max_capital, capital))
 
+        # Generate trading advice
+        trading_advice = generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital)
+        st.session_state.trading_advice = trading_advice
+
         # Prepare summary DataFrame for export
         summary_df = pd.DataFrame({
             "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time (seconds)"],
@@ -507,9 +537,17 @@ if calculate_clicked:
         plt.savefig(plot_path)
         plt.close()
 
+        # Generate Black-Scholes sensitivities plot if using BS model
+        bs_plot_path = None
+        if pricing_model == "Black-Scholes":
+            bs_sensitivities_fig = plot_black_scholes_sensitivities(S, strike_price, T, risk_free_rate, iv, option_type)
+            st.session_state.bs_sensitivities_fig = bs_sensitivities_fig
+            bs_plot_path = "bs_sensitivities.png"
+            bs_sensitivities_fig.write_image(bs_plot_path)
+
         # Generate PDF report
         try:
-            pdf = generate_pdf_report(st.session_state.input_data, greeks_df, summary_df, plot_path)
+            pdf = generate_pdf_report(st.session_state.input_data, greeks_df, summary_df, plot_path, bs_plot_path)
             pdf_bytes = pdf.output(dest='S').encode('latin-1')
             st.session_state.export_pdf = pdf_bytes
         except Exception as e:
@@ -538,7 +576,47 @@ if st.session_state.calculation_done:
     st.subheader("Summary")
     st.dataframe(st.session_state.summary_info)
 
+    st.subheader("Trading Advice")
+    st.dataframe(st.session_state.trading_advice)
+    
+    with st.expander("Understanding the Advice"):
+        st.markdown("""
+        **How we determine trading advice:**
+        
+        - **IV Divergence**: Measures how different this option's implied volatility is from sector peers.  
+          *> 0.1 suggests overpriced options*
+          
+        - **Z-Score**: Shows how far the stock price is from its recent average.  
+          *> |2| suggests overextended move*
+          
+        - **Sector Correlation**: Measures how well sector ETFs hedge this stock.  
+          *< 0.5 suggests poor hedging*
+          
+        - **Capital Adjustment**: Compares suggested capital to your comfortable amount.  
+          *< 70% suggests high risk environment*
+        """)
+
     st.plotly_chart(st.session_state.plot_fig)
+
+    if pricing_model == "Black-Scholes" and st.session_state.bs_sensitivities_fig is not None:
+        st.subheader("Black-Scholes Sensitivities")
+        st.plotly_chart(st.session_state.bs_sensitivities_fig)
+        
+        with st.expander("Understanding the Sensitivities"):
+            st.markdown("""
+            **What these curves show:**
+            
+            - **Price vs Underlying**: How the option price changes as the stock price moves  
+              *(Shows your option's leverage and moneyness)*
+              
+            - **Price vs Days to Expiry**: How time decay affects your option  
+              *(Theta effect - note the accelerating decay as expiration approaches)*
+              
+            - **Price vs Volatility**: How implied volatility changes affect price  
+              *(Vega effect - important for volatility trading strategies)*
+            
+            The dashed lines show your current position in each relationship.
+            """)
 
     with export_csv_col:
         st.download_button(
@@ -562,9 +640,15 @@ if st.session_state.calculation_done:
 else:
     st.info("Click 'Calculate Profit & Advice' to generate data and export options.")
 
-# Clean up plot file if it exists
+# Clean up plot files if they exist
 if st.session_state.get("plot_path") and os.path.exists(st.session_state.plot_path):
     try:
         os.remove(st.session_state.plot_path)
+    except:
+        pass
+
+if hasattr(st.session_state, "bs_sensitivities_fig") and os.path.exists("bs_sensitivities.png"):
+    try:
+        os.remove("bs_sensitivities.png")
     except:
         pass
