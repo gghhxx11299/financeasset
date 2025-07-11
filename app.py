@@ -156,7 +156,18 @@ max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
 min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
 pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
 
-if st.button("Calculate Profit & Advice"):
+# Buttons in columns: Calculate and export buttons next to each other
+calc_col, export_csv_col, export_png_col = st.columns([2, 1, 1])
+
+with calc_col:
+    calculate_clicked = st.button("Calculate Profit & Advice")
+
+# Initialize variables to None to avoid referencing before assignment
+price_market = price = iv = capital = calc_time = None
+greeks_df = None
+fig = None
+
+if calculate_clicked:
     try:
         T = days_to_expiry / 365
         S = yf.Ticker(ticker).history(period="1d")["Close"].iloc[-1]
@@ -188,7 +199,7 @@ if st.button("Calculate Profit & Advice"):
         greeks_df = pd.DataFrame({
             "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
             "Value": [greeks["Delta"], greeks["Gamma"], greeks["Vega"], greeks["Theta"], greeks["Rho"]]
-                      })
+        })
         greeks_df["Value"] = greeks_df["Value"].map(lambda x: f"{x:.4f}")
 
         # Display chosen pricing model
@@ -340,68 +351,30 @@ if st.button("Calculate Profit & Advice"):
         )
 
         st.plotly_chart(fig, use_container_width=True)
-# Export Greeks & Summary CSV
-summary_df = pd.DataFrame({
-    "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time (seconds)"],
-    "Value": [f"{price_market:.2f}", f"{price:.2f}", f"{iv*100:.2f}%", f"{capital:.2f}", f"{calc_time:.4f}"]
-})
-export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
-csv = export_df.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="Download Greeks & Summary CSV",
-    data=csv,
-    file_name=f"{ticker}_option_analysis.csv",
-    mime="text/csv"
-)
 
-# Export Plot PNG (requires plotly & kaleido)
-png_bytes = fig.to_image(format="png")
-st.download_button(
-    label="Download Profit vs Capital Plot (PNG)",
-    data=png_bytes,
-    file_name=f"{ticker}_profit_vs_capital.png",
-    mime="image/png"
-)
+        # Export buttons in columns next to Calculate button
+        summary_df = pd.DataFrame({
+            "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time (seconds)"],
+            "Value": [f"{price_market:.2f}", f"{price:.2f}", f"{iv*100:.2f}%", f"{capital:.2f}", f"{calc_time:.4f}"]
+        })
+        export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
+        csv = export_df.to_csv(index=False).encode('utf-8')
+        png_bytes = fig.to_image(format="png")
 
-
-        if iv_surface_data:
-            from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-            fig3d = plt.figure(figsize=(10, 6))
-            ax = fig3d.add_subplot(111, projection='3d')
-
-            expiries_unique = sorted(set(x[0] for x in iv_surface_data))
-            expiry_nums = list(range(len(expiries_unique)))
-            expiry_map = dict(zip(expiries_unique, expiry_nums))
-
-            xs = [expiry_map[x[0]] for x in iv_surface_data]
-            ys = [x[1] for x in iv_surface_data]
-            zs = [x[2] for x in iv_surface_data]
-
-            sc = ax.scatter(xs, ys, zs, c=zs, cmap='viridis')
-
-            ax.set_xticks(expiry_nums)
-            ax.set_xticklabels([x[0][5:] for x in expiries_unique], rotation=20)
-            ax.set_xlabel('Expiry Date (YY-MM)')
-            ax.set_ylabel('Strike Price')
-            ax.set_zlabel('Implied Volatility')
-            plt.colorbar(sc, label='IV')
-            plt.title(f"Implied Volatility Surface for {ticker}")
-
-            st.pyplot(fig3d)
-
-            buf = io.BytesIO()
-            fig3d.savefig(buf, format="png")
-            buf.seek(0)
+        with export_csv_col:
             st.download_button(
-                label="Download Implied Volatility Surface Plot (PNG)",
-                data=buf,
-                file_name=f"{ticker}_iv_surface.png",
+                label="Download Greeks & Summary CSV",
+                data=csv,
+                file_name=f"{ticker}_option_analysis.csv",
+                mime="text/csv"
+            )
+        with export_png_col:
+            st.download_button(
+                label="Download Profit vs Capital Plot (PNG)",
+                data=png_bytes,
+                file_name=f"{ticker}_profit_vs_capital.png",
                 mime="image/png"
             )
 
-        st.write(
-            "_Disclaimer: This tool provides estimates and is not financial advice. "
-            "Always perform your own due diligence before investing._"
-        )
     except Exception as e:
         st.error(f"An error occurred: {e}")
