@@ -478,6 +478,116 @@ if calculate_clicked:
         profits_ci_lower = []
         profits_ci_upper = []
 
+# Add this function to calculate IV percentiles
+def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
+    """Calculate how current IV compares to historical levels"""
+    try:
+        # Get historical volatility (using realized vol as proxy for IV)
+        hist = yf.download(ticker, period=f"{lookback_days}d")["Close"]
+        daily_returns = hist.pct_change().dropna()
+        realized_vol = daily_returns.std() * np.sqrt(252)  # Annualized
+        
+        # Calculate percentile (current IV vs historical realized vol)
+        percentile = percentileofscore([realized_vol], current_iv)
+        return percentile
+    except Exception as e:
+        st.warning(f"Could not calculate IV percentile: {e}")
+        return None
+
+# Add this function to plot IV crisis signals
+def plot_iv_crisis_signal(ticker, current_iv):
+    """Show historical IV spikes and current position"""
+    try:
+        # Get VIX data for market-wide volatility context
+        vix = yf.download("^VIX", period="1y")["Close"]
+        
+        # Create plot
+        fig = go.Figure()
+        
+        # Add VIX
+        fig.add_trace(go.Scatter(
+            x=vix.index,
+            y=vix,
+            name="VIX (Market Volatility)",
+            line=dict(color="purple")
+        ))
+        
+        # Add current IV level
+        fig.add_hline(
+            y=current_iv*100,  # Convert to VIX scale (VIX is %)
+            line=dict(color="red", dash="dash"),
+            annotation_text=f"Current IV: {current_iv*100:.1f}%",
+            annotation_position="bottom right"
+        )
+        
+        # Add crisis periods
+        crisis_periods = {
+            "COVID Crash (Mar 2020)": "2020-03-01",
+            "Dec 2018 Selloff": "2018-12-01",
+            "Feb 2018 Volmageddon": "2018-02-01"
+        }
+        
+        for name, date in crisis_periods.items():
+            fig.add_vline(
+                x=pd.to_datetime(date),
+                line=dict(color="orange", width=1),
+                annotation_text=name,
+                annotation_position="top left"
+            )
+        
+        fig.update_layout(
+            title=f"Volatility Context for {ticker}",
+            yaxis_title="Volatility (%)",
+            hovermode="x",
+            template="plotly_white"
+        )
+        return fig
+    except Exception as e:
+        st.warning(f"Could not generate volatility plot: {e}")
+        return None
+
+# In your calculation section (after computing IV), add:
+if calculate_clicked:
+    try:
+        # ... (your existing code)
+        
+        # Add IV percentile analysis
+        iv_percentile = calculate_iv_percentile(ticker, iv)
+        st.session_state.iv_percentile = iv_percentile
+        
+        # Add crisis signal plot
+        iv_crisis_fig = plot_iv_crisis_signal(ticker, iv)
+        st.session_state.iv_crisis_fig = iv_crisis_fig
+        
+        # Add warning to trading advice if IV is extreme
+        if iv_percentile and iv_percentile > 90:
+            st.session_state.trading_advice = pd.concat([
+                st.session_state.trading_advice,
+                pd.DataFrame({
+                    "Advice": ["⚠️ Market Stress Warning"],
+                    "Reason": [f"IV is in top {100-iv_percentile:.0f}% of historical levels - possible crisis ahead"]
+                })
+            ])
+            
+    except Exception as e:
+        st.error(f"IV analysis failed: {e}")
+
+# In your results display section, add this after the trading advice:
+if st.session_state.calculation_done:
+    # ... (your existing display code)
+    
+    if hasattr(st.session_state, 'iv_percentile') and st.session_state.iv_percentile:
+        st.metric(
+            label="Implied Volatility Percentile",
+            value=f"{st.session_state.iv_percentile:.0f}th percentile",
+            help="How current IV compares to 1-year history (higher = more extreme)"
+        )
+        
+    if hasattr(st.session_state, 'iv_crisis_fig') and st.session_state.iv_crisis_fig:
+        st.subheader("Volatility Context Analysis")
+        st.plotly_chart(st.session_state.iv_crisis_fig)
+        st.caption("Compare current IV (red line) to historical crisis periods")
+
         if pricing_model == "Monte Carlo":
             simulations = 10000
             np.random.seed(42)
