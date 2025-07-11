@@ -3,12 +3,15 @@ from datetime import datetime
 import yfinance as yf
 import pandas as pd
 import math
+import matplotlib.pyplot as plt
 from scipy.stats import norm
 import numpy as np
 import requests
 from bs4 import BeautifulSoup
 import time
-import plotly.graph_objs as go  # For interactive plots
+import io
+import base64
+import plotly.graph_objs as go
 
 # --- Sector ETFs ---
 SECTOR_MAP = {
@@ -124,9 +127,9 @@ def get_us_10yr_treasury_yield():
         soup = BeautifulSoup(response.text, 'html.parser')
 
         table = soup.find('table', {'class': 't-chart'})
-        if not table:
-            st.warning("Could not find Treasury yield table on the page. Using fallback rate.")
-            return 0.025  # fallback 2.5%
+        if table is None:
+            st.warning("Could not find Treasury yield table on the page.")
+            return 0.025
 
         rows = table.find_all('tr')
         latest_row = rows[-1].find_all('td')
@@ -134,7 +137,7 @@ def get_us_10yr_treasury_yield():
 
         return float(yield_10yr) / 100
     except Exception as e:
-        st.warning(f"Error fetching Treasury yield: {e}. Using fallback rate.")
+        st.warning(f"Error fetching Treasury yield: {e}")
         return 0.025  # fallback 2.5%
 
 st.title("Options Profit & Capital Advisor")
@@ -144,12 +147,7 @@ ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
 option_type = st.selectbox("Option Type", ["call", "put"])
 strike_price = st.number_input("Desired Strike Price", min_value=0.0, value=150.0)
 days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
-risk_free_rate = st.number_input(
-    "Risk-Free Rate (e.g. 0.025)",
-    min_value=0.0,
-    max_value=1.0,
-    value=get_us_10yr_treasury_yield()
-)
+risk_free_rate = st.number_input("Risk-Free Rate (e.g. 0.025)", min_value=0.0, max_value=1.0, value=get_us_10yr_treasury_yield())
 sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
 return_type = st.selectbox("Return Type", ["Simple", "Log"])
 comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
@@ -189,7 +187,7 @@ if st.button("Calculate Profit & Advice"):
         greeks_df = pd.DataFrame({
             "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
             "Value": [greeks["Delta"], greeks["Gamma"], greeks["Vega"], greeks["Theta"], greeks["Rho"]]
-        })
+                      })
         greeks_df["Value"] = greeks_df["Value"].map(lambda x: f"{x:.4f}")
 
         # Display chosen pricing model
@@ -199,7 +197,6 @@ if st.button("Calculate Profit & Advice"):
         st.write("### Greeks")
         st.table(greeks_df)
 
-        # Performance benchmarking start
         start = time.time()
         if pricing_model == "Black-Scholes":
             price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
@@ -210,8 +207,8 @@ if st.button("Calculate Profit & Advice"):
         else:
             price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
         end = time.time()
+
         calc_time = end - start
-        # Performance benchmarking end
 
         etfs = SECTOR_MAP.get(sector, [])
         symbols = [ticker] + etfs
@@ -251,8 +248,6 @@ if st.button("Calculate Profit & Advice"):
             - **Model Price ({pricing_model}):** `${price:.2f}`
             - **Implied Volatility (IV):** `{iv*100:.2f}%`
             - **Suggested Capital:** `${capital:.2f}`
-
-            ---
             - ⏱️ **Calculation Time:** `{calc_time:.4f} seconds`
             """
         )
@@ -282,7 +277,6 @@ if st.button("Calculate Profit & Advice"):
         profits_ci_upper = []
 
         if pricing_model == "Monte Carlo":
-            # For Monte Carlo, compute confidence intervals for profits
             simulations = 10000
             np.random.seed(42)
             dt = T
@@ -305,7 +299,6 @@ if st.button("Calculate Profit & Advice"):
                 profits_ci_lower.append(ci_lower)
                 profits_ci_upper.append(ci_upper)
         else:
-            # For other models, no CI, just simple profits
             for cap in capitals:
                 contracts = int(cap / (price * 100)) if price > 0 else 0
                 profit = contracts * 100 * (price * 1.05 - price)
@@ -313,10 +306,7 @@ if st.button("Calculate Profit & Advice"):
                 profits_ci_lower.append(None)
                 profits_ci_upper.append(None)
 
-        # Plotting with Plotly for interactivity and gridlines
         fig = go.Figure()
-
-        # Profit trace
         fig.add_trace(go.Scatter(
             x=capitals,
             y=profits,
@@ -326,13 +316,12 @@ if st.button("Calculate Profit & Advice"):
             hovertemplate='Capital: $%{x}<br>Profit: $%{y:.2f}<extra></extra>',
         ))
 
-        # Add confidence interval band if Monte Carlo
         if pricing_model == "Monte Carlo":
             fig.add_trace(go.Scatter(
                 x=capitals + capitals[::-1],
                 y=profits_ci_upper + profits_ci_lower[::-1],
                 fill='toself',
-                fillcolor='rgba(173,216,230,0.3)',  # light blue
+                fillcolor='rgba(173,216,230,0.3)',
                 line=dict(color='rgba(255,255,255,0)'),
                 hoverinfo="skip",
                 showlegend=True,
@@ -351,7 +340,30 @@ if st.button("Calculate Profit & Advice"):
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # --- Implied Volatility Surface Plot (Matplotlib, unchanged) ---
+        # --- Export Greeks & Summary CSV ---
+        summary_df = pd.DataFrame({
+            "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time (seconds)"],
+            "Value": [f"{price_market:.2f}", f"{price:.2f}", f"{iv*100:.2f}%", f"{capital:.2f}", f"{calc_time:.4f}"]
+        })
+        export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
+        csv = export_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Greeks & Summary CSV",
+            data=csv,
+            file_name=f"{ticker}_option_analysis.csv",
+            mime="text/csv"
+        )
+
+        # --- Export Profit vs Capital Plot PNG ---
+        png_bytes = fig.to_image(format="png")
+        st.download_button(
+            label="Download Profit vs Capital Plot (PNG)",
+            data=png_bytes,
+            file_name=f"{ticker}_profit_vs_capital.png",
+            mime="image/png"
+        )
+
+        # --- Implied Volatility Surface Plot ---
         ticker_obj = yf.Ticker(ticker)
         expiries = ticker_obj.options[:3]  # next 3 expiry dates
 
@@ -374,14 +386,12 @@ if st.button("Calculate Profit & Advice"):
                 continue
 
         if iv_surface_data:
-            import matplotlib.pyplot as plt
-            from mpl_toolkits.mplot3d import Axes3D
-
+            from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
             fig3d = plt.figure(figsize=(10, 6))
             ax = fig3d.add_subplot(111, projection='3d')
 
             expiries_unique = sorted(set(x[0] for x in iv_surface_data))
-            expiry_nums = [i for i in range(len(expiries_unique))]
+            expiry_nums = list(range(len(expiries_unique)))
             expiry_map = dict(zip(expiries_unique, expiry_nums))
 
             xs = [expiry_map[x[0]] for x in iv_surface_data]
@@ -400,10 +410,19 @@ if st.button("Calculate Profit & Advice"):
 
             st.pyplot(fig3d)
 
+            buf = io.BytesIO()
+            fig3d.savefig(buf, format="png")
+            buf.seek(0)
+            st.download_button(
+                label="Download Implied Volatility Surface Plot (PNG)",
+                data=buf,
+                file_name=f"{ticker}_iv_surface.png",
+                mime="image/png"
+            )
+
         st.write(
             "_Disclaimer: This tool provides estimates and is not financial advice. "
             "Always perform your own due diligence before investing._"
         )
-
     except Exception as e:
         st.error(f"An error occurred: {e}")
