@@ -225,7 +225,7 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 def plot_vix_chart():
-    """Plot clean VIX line chart with proper 1D data formatting"""
+    """Plot clean VIX line chart with proper data formatting"""
     try:
         # Get VIX data - we'll get 3 months of daily data
         vix_data = yf.download("^VIX", period="3mo", interval="1d", progress=False)
@@ -234,9 +234,9 @@ def plot_vix_chart():
             st.warning("No VIX data available")
             return None
 
-        # Convert to 1D arrays explicitly
-        dates = vix_data.index.to_numpy()  # Already 1D
-        vix_values = vix_data['Close'].to_numpy()  # Ensure 1D
+        # Convert to pandas Series to ensure proper formatting
+        dates = vix_data.index
+        vix_values = vix_data['Close']
 
         # Create the plot
         fig = go.Figure()
@@ -251,7 +251,7 @@ def plot_vix_chart():
         ))
         
         # Add current level marker line
-        current_vix = vix_values[-1]
+        current_vix = float(vix_values.iloc[-1])  # Convert to native Python float
         fig.add_hline(
             y=current_vix,
             line=dict(color='#ff7f0e', width=1.5, dash='dot'),
