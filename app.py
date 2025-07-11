@@ -10,6 +10,10 @@ import time
 import requests
 from bs4 import BeautifulSoup
 import io
+import requests
+import pandas as pd
+from io import StringIO
+
 
 # --- Sector ETFs ---
 SECTOR_MAP = {
@@ -119,28 +123,35 @@ def get_option_market_price(ticker, option_type, strike, expiry_date):
         return None
 
 def get_us_10yr_treasury_yield():
-    url = "https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=yield"
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(url, timeout=15)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-            table = soup.find('table', {'class': 't-chart'})
-            if table is None:
-                return 0.025  # fallback silently
-            rows = table.find_all('tr')
-            latest_row = rows[-1].find_all('td')
-            yield_10yr = latest_row[5].text.strip()
-            return float(yield_10yr) / 100
-        except Exception:
-            # retry quietly
-            if attempt < max_retries - 1:
-                time.sleep(2)
-                continue
-            else:
-                # final fallback silently
-                return 0.025
+    """
+    Fetches the latest 10-year Treasury yield from the official Treasury CSV dataset.
+    Returns the yield as a decimal (e.g., 0.025 for 2.5%).
+    If fetching or parsing fails, returns a fallback value of 0.025.
+    """
+    url = "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/Datasets/yield.csv"
+    fallback_yield = 0.025  # fallback 2.5%
+
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+
+        # Read CSV from text response
+        csv_data = StringIO(response.text)
+        df = pd.read_csv(csv_data)
+
+        # The CSV has a 'Date' column and columns for maturities like '10 Yr'
+        # The most recent date is at the bottom, get the last valid 10 Yr yield
+        df = df.dropna(subset=["10 Yr"])
+        if df.empty:
+            return fallback_yield
+
+        latest_yield_str = df["10 Yr"].iloc[-1]
+        latest_yield = float(latest_yield_str) / 100  # convert from percent to decimal
+
+        return latest_yield
+
+    except Exception:
+        return fallback_yield
 
 # --- Streamlit UI ---
 st.title("Options Profit & Capital Advisor")
