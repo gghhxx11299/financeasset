@@ -224,6 +224,7 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     except Exception as e:
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
+
 def plot_stock_volume(ticker, days_to_expiry):
     """Plot stock trading volume for the option's time frame"""
     try:
@@ -234,7 +235,7 @@ def plot_stock_volume(ticker, days_to_expiry):
             st.warning(f"No volume data available for {ticker}")
             return None
 
-        # Extract volume data
+        # Extract volume data as Series
         volume = stock_data['Volume']
         
         if volume.empty:
@@ -246,7 +247,7 @@ def plot_stock_volume(ticker, days_to_expiry):
         
         fig.add_trace(go.Bar(
             x=volume.index,
-            y=volume,
+            y=volume.values,  # Use .values to ensure 1D array
             name='Volume',
             marker_color='#1f77b4',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>Volume</b>: %{y:,}<extra></extra>"
@@ -492,8 +493,8 @@ def main():
         st.session_state.bs_sensitivities_fig = None
     if "iv_percentile" not in st.session_state:
         st.session_state.iv_percentile = None
-    if "vix_fig" not in st.session_state:
-        st.session_state.vix_fig = None
+    if "volume_fig" not in st.session_state:
+        st.session_state.volume_fig = None
 
     # Input widgets
     st.markdown("### Input Parameters")
@@ -641,9 +642,9 @@ def main():
                 iv_percentile = calculate_iv_percentile(ticker, iv)
                 st.session_state.iv_percentile = iv_percentile
                 
-                # Generate VIX chart
-                vix_fig = plot_vix_chart()
-                st.session_state.vix_fig = vix_fig
+                # Generate stock volume chart
+                volume_fig = plot_stock_volume(ticker, days_to_expiry)
+                st.session_state.volume_fig = volume_fig
 
                 # Generate trading advice
                 trading_advice = generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital)
@@ -807,8 +808,8 @@ def main():
         if st.session_state.plot_fig is not None:
             st.plotly_chart(st.session_state.plot_fig, use_container_width=True)
         
-        if st.session_state.vix_fig is not None:
-            st.plotly_chart(st.session_state.vix_fig, use_container_width=True)
+        if st.session_state.volume_fig is not None:
+            st.plotly_chart(st.session_state.volume_fig, use_container_width=True)
         
         if st.session_state.bs_sensitivities_fig is not None:
             st.plotly_chart(st.session_state.bs_sensitivities_fig, use_container_width=True)
