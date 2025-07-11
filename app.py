@@ -9,18 +9,31 @@ import plotly.graph_objs as go
 import time
 import requests
 from bs4 import BeautifulSoup
-import io
-import requests
-import pandas as pd
 from io import StringIO
+
+# You can add this import to detect if kaleido is available
+try:
+    import kaleido
+    KALEIDO_AVAILABLE = True
+except ImportError:
+    KALEIDO_AVAILABLE = False
+
 
 def prepare_export_csv(greeks_df, summary_df):
     export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
     return export_df.to_csv(index=False).encode('utf-8')
 
-def prepare_export_png(fig):
-    return fig.to_image(format="png")
 
+def prepare_export_png(fig):
+    if KALEIDO_AVAILABLE:
+        try:
+            return fig.to_image(format="png")
+        except Exception as e:
+            st.warning(f"Error generating PNG image: {e}")
+            return None
+    else:
+        st.warning("Kaleido package not installed. PNG export not available.")
+        return None
 
 
 # --- Sector ETFs ---
@@ -177,11 +190,8 @@ comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, 
 max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
 min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
 pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
-# --- Buttons ---
-export_csv_col = None
-export_png_col = None
 
-# Layout buttons in columns on top
+# --- Buttons ---
 calc_col, export_csv_col, export_png_col = st.columns([2, 1, 1])
 
 with calc_col:
@@ -350,7 +360,7 @@ if calculate_clicked:
                 x=capitals + capitals[::-1],
                 y=profits_ci_upper + profits_ci_lower[::-1],
                 fill='toself',
-                fillcolor='rgba(173,216,230,0.3)',
+                fillcolor='rgba(0,176,246,0.2)',
                 line=dict(color='rgba(255,255,255,0)'),
                 hoverinfo="skip",
                 showlegend=True,
@@ -358,78 +368,59 @@ if calculate_clicked:
             ))
 
         fig.update_layout(
-            title='Profit vs Capital',
-            xaxis_title='Capital ($)',
-            yaxis_title='Profit ($)',
-            hovermode='x unified',
-            template='plotly_white',
-            xaxis=dict(showgrid=True, gridcolor='LightGray'),
-            yaxis=dict(showgrid=True, gridcolor='LightGray'),
+            title=f"Expected Profit vs Capital for {ticker} ({option_type} option)",
+            xaxis_title="Capital ($)",
+            yaxis_title="Expected Profit ($)",
+            hovermode="x unified",
+            template="plotly_white"
         )
 
-        # Save data to session_state for export buttons & output
-        st.session_state.calculation_done = True
-        st.session_state.export_csv = csv
-        st.session_state.export_png = fig.to_image(format="png")
         st.session_state.greeks_df = greeks_df
         st.session_state.summary_info = summary_df
+        st.session_state.export_csv = csv
         st.session_state.plot_fig = fig
-
-        # Show output after calculation
-        st.markdown(f"## Pricing Model Selected: **{pricing_model}**")
-        st.write("### Greeks")
-        st.table(greeks_df)
-        st.markdown(
-            f"""
-            ### Pricing Summary
-
-            - **Market Price:** `${price_market:.2f}`
-            - **Model Price ({pricing_model}):** `${price:.2f}`
-            - **Implied Volatility (IV):** `{iv*100:.2f}%`
-            - **Suggested Capital:** `${capital:.2f}`
-            - ⏱️ **Calculation Time:** `{calc_time:.4f} seconds`
-            """
-        )
-        st.write("### Advice")
-        if explanation:
-            for line in explanation:
-                st.write(f"- {line}")
-        else:
-            st.write("- No significant adjustments. Capital allocation looks good.")
-
-        st.write("### Reason for Suggested Capital")
-        if explanation:
-            reasons = "\n".join(explanation)
-            st.markdown(f"""
-            The suggested capital is adjusted due to the following factors observed in the market data and analysis:
-            {reasons}
-            """)
-        else:
-            st.markdown("The suggested capital is based on your comfortable capital without any adjustments because market indicators show stable conditions.")
-
-        st.plotly_chart(fig, use_container_width=True)
+        st.session_state.export_png = prepare_export_png(fig)
+        st.session_state.calculation_done = True
+        st.success("Calculation done!")
 
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"Calculation failed: {e}")
         st.session_state.calculation_done = False
-   
 
-# Export buttons - enabled only after calculation
-with export_csv_col:
-    st.download_button(
-        label="Download Greeks & Summary CSV",
-        data=st.session_state.export_csv if st.session_state.calculation_done else None,
-        file_name=f"{ticker}_option_analysis.csv",
-        mime="text/csv",
-        disabled=not st.session_state.calculation_done
-    )
 
-with export_png_col:
-    st.download_button(
-        label="Download Profit vs Capital Plot (PNG)",
-        data=st.session_state.export_png if st.session_state.calculation_done else None,
-        file_name=f"{ticker}_profit_vs_capital.png",
-        mime="image/png",
-        disabled=not st.session_state.calculation_done
-    )
+# Display results and export buttons
+if st.session_state.calculation_done:
+    st.subheader("Option Greeks")
+    st.dataframe(st.session_state.greeks_df)
+
+    st.subheader("Summary")
+    st.dataframe(st.session_state.summary_info)
+
+    st.plotly_chart(st.session_state.plot_fig)
+
+    with export_csv_col:
+        st.download_button(
+            label="Download Data (CSV)",
+            data=st.session_state.export_csv,
+            file_name=f"{ticker}_option_data.csv",
+            mime="text/csv",
+            disabled=not st.session_state.calculation_done
+        )
+
+    with export_png_col:
+        if st.session_state.export_png:
+            st.download_button(
+                label="Download Plot (PNG)",
+                data=st.session_state.export_png,
+                file_name=f"{ticker}_profit_vs_capital.png",
+                mime="image/png",
+                disabled=not st.session_state.calculation_done
+            )
+        else:
+            st.info("PNG export not available (Kaleido not installed or error).")
+
+else:
+    st.info("Click 'Calculate Profit & Advice' to generate data and export options.")
+
+
 
