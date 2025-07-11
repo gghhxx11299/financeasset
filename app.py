@@ -181,8 +181,8 @@ if st.button("Calculate Profit & Advice"):
                       })
         greeks_df["Value"] = greeks_df["Value"].map(lambda x: f"{x:.4f}")
 
-             st.write("### Greeks")
-             st.table(greeks_df)
+        st.write("### Greeks")
+        st.table(greeks_df)
 
         if pricing_model == "Black-Scholes":
             price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
