@@ -163,7 +163,6 @@ strike_price = st.number_input("Desired Strike Price", min_value=0.0, value=150.
 days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
 default_risk_free_rate = 0.025
 risk_free_rate = st.number_input("Risk-Free Rate (e.g. 0.025)", min_value=0.0, max_value=1.0, value=default_risk_free_rate)
-)
 sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
 return_type = st.selectbox("Return Type", ["Simple", "Log"])
 comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
