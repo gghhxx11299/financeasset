@@ -464,13 +464,22 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     for key, value in input_data.items():
         pdf.cell(200, 10, f"{key}: {value}", ln=True)
 
-    # Greeks section
+    # Greeks section - with NumPy array handling
     pdf.ln(5)
     pdf.set_font("Arial", 'B', size=12)
     pdf.cell(200, 10, "Greeks", ln=True)
     pdf.set_font("Arial", size=12)
     for _, row in greeks_df.iterrows():
-        pdf.cell(200, 10, f"{row['Greek']}: {row['Value']:.4f}", ln=True)
+        try:
+            # Handle both scalar and array values
+            value = row['Value']
+            if isinstance(value, np.ndarray):
+                value = float(value.item())  # Extract scalar from array
+            else:
+                value = float(value)
+            pdf.cell(200, 10, f"{row['Greek']}: {value:.4f}", ln=True)
+        except Exception as e:
+            pdf.cell(200, 10, f"{row['Greek']}: Error formatting value", ln=True)
 
     # Summary section
     pdf.ln(5)
