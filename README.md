@@ -93,9 +93,6 @@ KNOWN LIMITATIONS
 - Does not account for early exercise premium
 - Limited to European-style exercise for precise calculations
 
-LICENSE
--------
-MIT License - Free for personal and commercial use
 
 CONTACT
 -------
