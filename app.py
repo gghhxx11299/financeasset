@@ -227,28 +227,26 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
 def plot_vix_chart():
     """Plot clean VIX line chart with guaranteed proper data formatting"""
     try:
-        # Get VIX data with error handling
         vix_data = yf.download("^VIX", period="3mo", interval="1d", progress=False)
-        
+
         if vix_data.empty or 'Close' not in vix_data.columns:
             st.warning("No valid VIX data available from Yahoo Finance")
             return None
 
-        # Clean and prepare the data
-        clean_data = vix_data[['Close']].copy()
-        clean_data = clean_data.dropna()
-        
+        clean_data = vix_data[['Close']].dropna()
+
         if clean_data.empty:
             st.warning("No valid VIX data available after cleaning")
             return None
 
-        # Convert to proper 1D format that Plotly expects
-        dates = clean_data.index.to_pydatetime()  # Convert to native Python datetime
-        values = clean_data['Close'].tolist()     # Convert to native Python list
+        if not isinstance(clean_data.index, pd.DatetimeIndex):
+            st.warning("VIX data index is not datetime type")
+            return None
 
-        # Create the plot
+        dates = clean_data.index.to_pydatetime()
+        values = clean_data['Close'].tolist()
+
         fig = go.Figure()
-        
         fig.add_trace(go.Scatter(
             x=dates,
             y=values,
@@ -257,18 +255,27 @@ def plot_vix_chart():
             name='VIX',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}<extra></extra>"
         ))
-        
-        # Add current level marker
-        if len(values) > 0:
+
+        if values:
             current_vix = values[-1]
-            fig.add_hline(
-                y=current_vix,
+            fig.add_shape(
+                type="line",
+                x0=min(dates),
+                x1=max(dates),
+                y0=current_vix,
+                y1=current_vix,
                 line=dict(color='#ff7f0e', width=1.5, dash='dot'),
-                annotation_text=f"Current: {current_vix:.2f}",
-                annotation_position="bottom right"
             )
-        
-        # Format the layout
+            fig.add_annotation(
+                x=max(dates),
+                y=current_vix,
+                text=f"Current: {current_vix:.2f}",
+                showarrow=False,
+                xanchor='right',
+                yanchor='bottom',
+                font=dict(color="#ff7f0e")
+            )
+
         fig.update_layout(
             title="<b>CBOE Volatility Index (VIX)</b> - Last 3 Months",
             xaxis_title="Date",
@@ -289,12 +296,13 @@ def plot_vix_chart():
             margin=dict(l=50, r=50, b=50, t=80),
             showlegend=False
         )
-        
+
         return fig
-        
+
     except Exception as e:
         st.error(f"Error generating VIX chart: {str(e)}")
         return None
+
 # --- Visualization ---
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
