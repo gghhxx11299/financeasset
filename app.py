@@ -225,34 +225,35 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 def plot_vix_chart():
-    """Plot clean VIX line chart with proper date formatting"""
+    """Plot clean VIX line chart with proper time series data"""
     try:
-        # Get VIX data - ensure we get at least 30 days of data
-        vix_data = yf.download("^VIX", period="3mo", progress=False)
+        # Get VIX data - we'll get 3 months of daily data
+        vix_data = yf.download("^VIX", period="3mo", interval="1d", progress=False)
         
         if vix_data.empty:
             st.warning("No VIX data available")
             return None
 
-        # Clean the data - ensure proper datetime format
-        vix_df = vix_data[['Close']].copy()
-        vix_df = vix_df.reset_index()
-        vix_df['Date'] = pd.to_datetime(vix_df['Date']).dt.date  # Convert to date only
-        
-        # Create line chart with proper formatting
+        # Create clean dataframe with just dates and closing prices
+        vix_df = pd.DataFrame({
+            'Date': vix_data.index,
+            'VIX': vix_data['Close']
+        }).reset_index(drop=True)
+
+        # Create the plot
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
             x=vix_df['Date'],
-            y=vix_df['Close'],
+            y=vix_df['VIX'],
             mode='lines',
             line=dict(color='#1f77b4', width=2),
             name='VIX',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}<extra></extra>"
         ))
         
-        # Add current level marker
-        current_vix = float(vix_df['Close'].iloc[-1])
+        # Add current level marker line
+        current_vix = vix_df['VIX'].iloc[-1]
         fig.add_hline(
             y=current_vix,
             line=dict(color='#ff7f0e', width=1.5, dash='dot'),
@@ -260,7 +261,7 @@ def plot_vix_chart():
             annotation_position="bottom right"
         )
         
-        # Clean layout
+        # Format the layout properly
         fig.update_layout(
             title="<b>CBOE Volatility Index (VIX)</b> - Last 3 Months",
             xaxis_title="Date",
@@ -268,16 +269,17 @@ def plot_vix_chart():
             xaxis=dict(
                 type='date',
                 tickformat='%b %d',
-                showgrid=True
+                showgrid=True,
+                rangeslider=dict(visible=True)  # Add range slider for zooming
             ),
             yaxis=dict(
-                showgrid=True
+                showgrid=True,
+                fixedrange=False
             ),
             hovermode="x unified",
             template="plotly_white",
-            height=450,
-            margin=dict(l=50, r=50, b=50, t=60),
-            showlegend=False
+            height=500,
+            margin=dict(l=50, r=50, b=50, t=80)
         )
         
         return fig
