@@ -225,7 +225,7 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 def plot_stock_volume(ticker, days_to_expiry):
-    """Plot stock trading volume - handles all edge cases"""
+    """Plot stock/ETF trading volume - handles both simple and MultiIndex DataFrames"""
     try:
         # 1. Fetch data with multiple fallback attempts
         stock_data = None
@@ -240,7 +240,7 @@ def plot_stock_volume(ticker, days_to_expiry):
             try:
                 stock_data = yf.download(
                     ticker,
-                    period=f"{min(days_to_expiry, 365)}d",  # Cap at 1 year
+                    period=f"{min(days_to_expiry, 365)}d",
                     progress=False,
                     **attempt
                 )
@@ -254,16 +254,20 @@ def plot_stock_volume(ticker, days_to_expiry):
             st.warning(f"⚠️ No market data available for {ticker}")
             return None
 
-        # 3. Find volume column (handles different naming conventions)
+        # 3. Find volume column (handles both regular and MultiIndex columns)
         volume_col = None
-        possible_volume_cols = ['Volume', 'volume', 'VOLUME', 'Vol', 'vol']
         for col in stock_data.columns:
-            if str(col) in possible_volume_cols:
+            # Case 1: Simple string column name (e.g., 'Volume')
+            if isinstance(col, str) and 'volume' in col.lower():
+                volume_col = col
+                break
+            # Case 2: MultiIndex tuple column (e.g., ('Volume', 'SPY'))
+            elif isinstance(col, tuple) and any('volume' in str(s).lower() for s in col):
                 volume_col = col
                 break
 
         if not volume_col:
-            st.warning(f"📊 Volume data missing for {ticker} (Available columns: {list(stock_data.columns)})")
+            st.warning(f"📊 Volume data missing for {ticker} (Available columns: {stock_data.columns.tolist()})")
             return None
 
         # 4. Clean data
@@ -272,23 +276,18 @@ def plot_stock_volume(ticker, days_to_expiry):
             st.warning(f"🧹 No valid volume data after cleaning for {ticker}")
             return None
 
-        # 5. Format numbers safely
+        # 5. Create plot
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=clean_data.index,
+            y=clean_data[volume_col],
+            marker_color='#1f77b4',
+            hovertemplate="<b>Date</b>: %{x|%b %d}<br><b>Volume</b>: %{y:,}<extra></extra>"
+        ))
+        
+        # Add average line if we have valid data
         try:
             avg_volume = clean_data[volume_col].mean()
-            avg_text = f"Avg: {avg_volume:,.0f}" if not pd.isna(avg_volume) else "Avg: N/A"
-        except:
-            avg_text = "Avg: N/A"
-
-        # 6. Create plot with error handling
-        try:
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=clean_data.index,
-                y=clean_data[volume_col],
-                marker_color='#1f77b4',
-                hovertemplate="<b>Date</b>: %{x|%b %d}<br><b>Volume</b>: %{y:,}<extra></extra>"
-            ))
-            
             fig.add_shape(
                 type="line",
                 x0=clean_data.index[0],
@@ -297,23 +296,31 @@ def plot_stock_volume(ticker, days_to_expiry):
                 y1=avg_volume,
                 line=dict(color='#ff7f0e', dash='dot')
             )
-            
-            fig.update_layout(
-                title=f"<b>{ticker} Volume</b> | Last {len(clean_data)} Trading Days",
-                yaxis_title="Shares Traded",
-                template="plotly_white",
-                hovermode="x unified"
+            fig.add_annotation(
+                x=clean_data.index[-1],
+                y=avg_volume,
+                text=f"Avg: {avg_volume:,.0f}",
+                showarrow=False,
+                xanchor='right',
+                yanchor='bottom',
+                font=dict(color="#ff7f0e")
             )
-            
-            return fig
-            
-        except Exception as plot_error:
-            st.error(f"📉 Chart rendering failed: {str(plot_error)}")
-            return None
+        except:
+            pass
+        
+        fig.update_layout(
+            title=f"<b>{ticker} Volume</b> | Last {len(clean_data)} Trading Days",
+            yaxis_title="Shares Traded",
+            template="plotly_white",
+            hovermode="x unified"
+        )
+        
+        return fig
 
     except Exception as e:
-        st.error(f"❌ Critical error processing {ticker}: {str(e)}")
+        st.error(f"❌ Error processing {ticker}: {str(e)}")
         return None
+
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
     fig = make_subplots(rows=3, cols=1, 
