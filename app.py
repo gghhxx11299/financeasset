@@ -119,24 +119,28 @@ def get_option_market_price(ticker, option_type, strike, expiry_date):
         return None
 
 def get_us_10yr_treasury_yield():
-    try:
-        url = "https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=yield"
-        response = requests.get(url, timeout=20)
-        soup = BeautifulSoup(response.text, 'html.parser')
-
-        table = soup.find('table', {'class': 't-chart'})
-        if table is None:
-            st.warning("Could not find Treasury yield table on the page.")
-            return 0.025
-
-        rows = table.find_all('tr')
-        latest_row = rows[-1].find_all('td')
-        yield_10yr = latest_row[5].text.strip()
-
-        return float(yield_10yr) / 100
-    except Exception as e:
-        st.warning(f"Error fetching Treasury yield: {e}")
-        return 0.025  # fallback 2.5%
+    url = "https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=yield"
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, timeout=15)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            table = soup.find('table', {'class': 't-chart'})
+            if table is None:
+                return 0.025  # fallback silently
+            rows = table.find_all('tr')
+            latest_row = rows[-1].find_all('td')
+            yield_10yr = latest_row[5].text.strip()
+            return float(yield_10yr) / 100
+        except Exception:
+            # retry quietly
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            else:
+                # final fallback silently
+                return 0.025
 
 # --- Streamlit UI ---
 st.title("Options Profit & Capital Advisor")
