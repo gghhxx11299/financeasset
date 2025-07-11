@@ -1,6 +1,5 @@
 import os
 from fpdf import FPDF
-import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 from datetime import datetime
@@ -229,24 +228,34 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 
-def plot_iv_crisis_signal(ticker, current_iv):
-    """Show enhanced historical IV spikes and current position"""
+def plot_volatility_comparison(ticker, current_iv):
+    """Compare VIX with stock's historical volatility"""
     try:
-        # Get VIX data for market-wide volatility context
+        # Get VIX data and stock's historical volatility
         vix = yf.download("^VIX", period="1y")["Close"]
+        stock_data = yf.download(ticker, period="1y")["Close"]
+        stock_returns = stock_data.pct_change().dropna()
+        stock_volatility = stock_returns.rolling(21).std() * np.sqrt(252) * 100  # Annualized percentage
         
-        # Create plot with custom colors
+        # Create plot
         fig = go.Figure()
         
-        # Add VIX with solid color fill
+        # Add VIX
         fig.add_trace(go.Scatter(
             x=vix.index,
             y=vix,
-            name="Market Volatility (VIX)",
+            name="VIX (Market Volatility)",
             line=dict(color="#6a11cb", width=2),
-            fill='tozeroy',
-            fillcolor='rgba(106, 17, 203, 0.3)',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}%<extra></extra>"
+        ))
+        
+        # Add Stock Volatility
+        fig.add_trace(go.Scatter(
+            x=stock_volatility.index,
+            y=stock_volatility,
+            name=f"{ticker} Volatility",
+            line=dict(color="#ff4757", width=2),
+            hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>Volatility</b>: %{y:.2f}%<extra></extra>"
         ))
         
         # Add current IV level
@@ -262,30 +271,9 @@ def plot_iv_crisis_signal(ticker, current_iv):
             )
         )
         
-        # Add crisis periods
-        crisis_periods = {
-            "COVID Crash": pd.Timestamp("2020-03-16"),
-            "Dec 2018 Selloff": pd.Timestamp("2018-12-24"),
-            "Feb 2018 Volmageddon": pd.Timestamp("2018-02-05")
-        }
-        
-        for name, date in crisis_periods.items():
-            if date >= vix.index.min() and date <= vix.index.max():
-                fig.add_vline(
-                    x=date,
-                    line=dict(color="#ffa502", width=2, dash="dash"),
-                    annotation=dict(
-                        text=name,
-                        font=dict(color="#ffa502", size=10),
-                        bgcolor="white",
-                        bordercolor="#ffa502",
-                        borderwidth=1
-                    )
-                )
-        
         fig.update_layout(
-            title=f"<b>Volatility Context for {ticker}</b>",
-            yaxis_title="Volatility Index (VIX)",
+            title=f"<b>Volatility Comparison: VIX vs {ticker}</b>",
+            yaxis_title="Volatility (%)",
             xaxis_title="Date",
             hovermode="x unified",
             template="plotly_white",
@@ -317,7 +305,7 @@ def plot_iv_crisis_signal(ticker, current_iv):
         
         return fig
     except Exception as e:
-        st.warning(f"Could not generate volatility plot: {e}")
+        st.warning(f"Could not generate volatility comparison plot: {e}")
         return None
 
 # --- Trading Advice ---
@@ -482,7 +470,7 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     pdf.cell(200, 10, "Greeks", ln=True)
     pdf.set_font("Arial", size=12)
     for _, row in greeks_df.iterrows():
-        pdf.cell(200, 10, f"{row['Greek']}: {row['Value']}", ln=True)
+        pdf.cell(200, 10, f"{row['Greek']}: {row['Value']:.4f}", ln=True)
 
     # Summary section
     pdf.ln(5)
@@ -532,8 +520,8 @@ def main():
         st.session_state.bs_sensitivities_fig = None
     if "iv_percentile" not in st.session_state:
         st.session_state.iv_percentile = None
-    if "iv_crisis_fig" not in st.session_state:
-        st.session_state.iv_crisis_fig = None
+    if "volatility_comparison_fig" not in st.session_state:
+        st.session_state.volatility_comparison_fig = None
 
     # Input widgets
     st.markdown("### Input Parameters")
@@ -625,11 +613,11 @@ def main():
                 greeks_df = pd.DataFrame({
                     "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
                     "Value": [
-                        greeks['Delta'],
-                        greeks['Gamma'],
-                        greeks['Vega'],
-                        greeks['Theta'],
-                        greeks['Rho']
+                        float(greeks['Delta']),
+                        float(greeks['Gamma']),
+                        float(greeks['Vega']),
+                        float(greeks['Theta']),
+                        float(greeks['Rho'])
                     ]
                 })
                 st.session_state.greeks_df = greeks_df
@@ -681,9 +669,9 @@ def main():
                 iv_percentile = calculate_iv_percentile(ticker, iv)
                 st.session_state.iv_percentile = iv_percentile
                 
-                # Crisis signal plot
-                iv_crisis_fig = plot_iv_crisis_signal(ticker, iv)
-                st.session_state.iv_crisis_fig = iv_crisis_fig
+                # Volatility comparison plot
+                volatility_comparison_fig = plot_volatility_comparison(ticker, iv)
+                st.session_state.volatility_comparison_fig = volatility_comparison_fig
 
                 # Generate trading advice
                 trading_advice = generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital)
@@ -811,7 +799,7 @@ def main():
                 st.session_state.calculation_done = False
 
     # Display results if calculation is done
-    if st.session_state.calculation_done:
+    if st.session_state.get('calculation_done', False):
         st.markdown("---")
         st.markdown("## Analysis Results")
         
@@ -821,10 +809,15 @@ def main():
             with col1:
                 st.markdown("### Option Greeks")
                 if st.session_state.greeks_df is not None:
-                    st.dataframe(st.session_state.greeks_df.style.format({"Value": "{:.4f}"}).set_properties(**{
-                        'background-color': 'white',
-                        'border': '1px solid #f0f0f0'
-                    }), use_container_width=True)
+                    greeks_df = st.session_state.greeks_df.copy()
+                    greeks_df['Value'] = pd.to_numeric(greeks_df['Value'], errors='coerce')
+                    st.dataframe(
+                        greeks_df.style.format({"Value": "{:.4f}"}, na_rep="N/A").set_properties(**{
+                            'background-color': 'white',
+                            'border': '1px solid #f0f0f0'
+                        }), 
+                        use_container_width=True
+                    )
             
             with col2:
                 st.markdown("### Summary Metrics")
@@ -856,8 +849,8 @@ def main():
         if st.session_state.plot_fig is not None:
             st.plotly_chart(st.session_state.plot_fig, use_container_width=True)
         
-        if st.session_state.iv_crisis_fig is not None:
-            st.plotly_chart(st.session_state.iv_crisis_fig, use_container_width=True)
+        if st.session_state.volatility_comparison_fig is not None:
+            st.plotly_chart(st.session_state.volatility_comparison_fig, use_container_width=True)
         
         if st.session_state.bs_sensitivities_fig is not None:
             st.plotly_chart(st.session_state.bs_sensitivities_fig, use_container_width=True)
