@@ -197,20 +197,22 @@ def plot_iv_crisis_signal(ticker, current_iv):
             annotation_position="bottom right"
         )
         
-        # Add crisis periods
+        # Add crisis periods - convert dates to pandas Timestamps first
         crisis_periods = {
-            "COVID Crash (Mar 2020)": "2020-03-01",
-            "Dec 2018 Selloff": "2018-12-01",
-            "Feb 2018 Volmageddon": "2018-02-01"
+            "COVID Crash (Mar 2020)": pd.Timestamp("2020-03-01"),
+            "Dec 2018 Selloff": pd.Timestamp("2018-12-01"),
+            "Feb 2018 Volmageddon": pd.Timestamp("2018-02-01")
         }
         
         for name, date in crisis_periods.items():
-            fig.add_vline(
-                x=pd.to_datetime(date),
-                line=dict(color="orange", width=1),
-                annotation_text=name,
-                annotation_position="top left"
-            )
+            # Only add if the date is within our data range
+            if date >= vix.index.min() and date <= vix.index.max():
+                fig.add_vline(
+                    x=date,
+                    line=dict(color="orange", width=1),
+                    annotation_text=name,
+                    annotation_position="top left"
+                )
         
         fig.update_layout(
             title=f"Volatility Context for {ticker}",
