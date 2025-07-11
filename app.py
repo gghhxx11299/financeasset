@@ -250,7 +250,7 @@ def plot_stock_volume(ticker, days_to_expiry):
             y=volume.values,  # Use .values to ensure 1D array
             name='Volume',
             marker_color='#1f77b4',
-            hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>Volume</b>: %{y:,f}<extra></extra>"
+            hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>Volume</b>: %{y:,.0f}<extra></extra>"
         ))
         
         # Add average volume line
