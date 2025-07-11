@@ -14,29 +14,10 @@ import requests
 from bs4 import BeautifulSoup
 from io import StringIO
 
-# You can add this import to detect if kaleido is available
-try:
-    import kaleido
-    KALEIDO_AVAILABLE = True
-except ImportError:
-    KALEIDO_AVAILABLE = False
-
 
 def prepare_export_csv(greeks_df, summary_df):
     export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
     return export_df.to_csv(index=False).encode('utf-8')
-
-
-def prepare_export_png(fig):
-    if KALEIDO_AVAILABLE:
-        try:
-            return fig.to_image(format="png")
-        except Exception as e:
-            st.warning(f"Error generating PNG image: {e}")
-            return None
-    else:
-        st.warning("Kaleido package not installed. PNG export not available.")
-        return None
 
 
 def generate_pdf_report(input_data, greeks_df, summary_df, plot_path=None):
@@ -242,7 +223,7 @@ min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
 pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
 
 # --- Buttons ---
-calc_col, export_csv_col, export_png_col, export_pdf_col = st.columns([2, 1.5, 1.5, 1.5])
+calc_col, export_csv_col, export_pdf_col = st.columns([2, 1, 1])
 
 with calc_col:
     calculate_clicked = st.button("Calculate Profit & Advice")
@@ -252,8 +233,6 @@ if "calculation_done" not in st.session_state:
     st.session_state.calculation_done = False
 if "export_csv" not in st.session_state:
     st.session_state.export_csv = None
-if "export_png" not in st.session_state:
-    st.session_state.export_png = None
 if "export_pdf" not in st.session_state:
     st.session_state.export_pdf = None
 if "greeks_df" not in st.session_state:
@@ -469,7 +448,6 @@ if calculate_clicked:
         st.session_state.summary_info = summary_df
         st.session_state.export_csv = csv
         st.session_state.plot_fig = fig
-        st.session_state.export_png = prepare_export_png(fig)
         st.session_state.plot_path = plot_path
         st.session_state.calculation_done = True
         st.success("Calculation done!")
@@ -497,17 +475,6 @@ if st.session_state.calculation_done:
             mime="text/csv"
         )
 
-    with export_png_col:
-        if st.session_state.export_png:
-            st.download_button(
-                label="Download Plot (PNG)",
-                data=st.session_state.export_png,
-                file_name=f"{ticker}_profit_vs_capital.png",
-                mime="image/png"
-            )
-        else:
-            st.info("PNG export not available (Kaleido not installed or error).")
-    
     with export_pdf_col:
         if st.session_state.export_pdf:
             st.download_button(
