@@ -153,6 +153,9 @@ comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, 
 max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
 min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
 pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
+# --- Buttons ---
+export_csv_col = None
+export_png_col = None
 
 # Layout buttons in columns on top
 calc_col, export_csv_col, export_png_col = st.columns([2, 1, 1])
@@ -232,9 +235,12 @@ if calculate_clicked:
         if return_type == "Log":
             returns = (df / df.shift(1)).apply(np.log).dropna()
         else:
-            returns = df.pct_change(fill_method=None).dropna()
+            returns = df.pct_change().dropna()
 
-        zscore = ((df[ticker] - df[ticker].rolling(3).mean()) / df[ticker].rolling(3).std()).dropna()
+
+        window = 20
+        zscore = ((df[ticker] - df[ticker].rolling(window).mean()) / df[ticker].rolling(window).std()).dropna()
+
         latest_z = zscore.iloc[-1] if not zscore.empty else 0
 
         correlation = returns.corr().loc[ticker].drop(ticker).mean()
