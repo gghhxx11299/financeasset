@@ -1,5 +1,4 @@
 streamlit
-datetime
 yfinance
 pandas
 numpy
@@ -7,3 +6,4 @@ scipy
 plotly
 requests
 beautifulsoup4
+kaleido
