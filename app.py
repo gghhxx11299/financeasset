@@ -3,12 +3,12 @@ from datetime import datetime
 import yfinance as yf
 import pandas as pd
 import math
-import matplotlib.pyplot as plt
 from scipy.stats import norm
 import numpy as np
 import requests
 from bs4 import BeautifulSoup
-import time  # <-- added for performance timing
+import time
+import plotly.graph_objs as go  # For interactive plots
 
 # --- Sector ETFs ---
 SECTOR_MAP = {
@@ -114,19 +114,18 @@ def get_option_market_price(ticker, option_type, strike, expiry_date):
         options = opt_chain.calls if option_type == "call" else opt_chain.puts
         row = options[options['strike'] == strike]
         return None if row.empty else row.iloc[0]['lastPrice']
-    except Exception as e:
-        st.warning(f"Error fetching option market price: {e}")
+    except:
         return None
 
 def get_us_10yr_treasury_yield():
     try:
         url = "https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=yield"
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
 
         table = soup.find('table', {'class': 't-chart'})
-        if table is None:
-            st.warning("Could not find Treasury yield table on the page.")
+        if not table:
+            st.warning("Could not find Treasury yield table on the page. Using fallback rate.")
             return 0.025  # fallback 2.5%
 
         rows = table.find_all('tr')
@@ -135,7 +134,7 @@ def get_us_10yr_treasury_yield():
 
         return float(yield_10yr) / 100
     except Exception as e:
-        st.warning(f"Network error fetching treasury yield: {e}")
+        st.warning(f"Error fetching Treasury yield: {e}. Using fallback rate.")
         return 0.025  # fallback 2.5%
 
 st.title("Options Profit & Capital Advisor")
@@ -149,7 +148,7 @@ risk_free_rate = st.number_input(
     "Risk-Free Rate (e.g. 0.025)",
     min_value=0.0,
     max_value=1.0,
-    value=get_us_10yr_treasury_yield(),
+    value=get_us_10yr_treasury_yield()
 )
 sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
 return_type = st.selectbox("Return Type", ["Simple", "Log"])
@@ -187,18 +186,10 @@ if st.button("Calculate Profit & Advice"):
             st.stop()
 
         greeks = black_scholes_greeks(S, strike_price, T, risk_free_rate, iv, option_type)
-        greeks_df = pd.DataFrame(
-            {
-                "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
-                "Value": [
-                    greeks["Delta"],
-                    greeks["Gamma"],
-                    greeks["Vega"],
-                    greeks["Theta"],
-                    greeks["Rho"],
-                ],
-            }
-        )
+        greeks_df = pd.DataFrame({
+            "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
+            "Value": [greeks["Delta"], greeks["Gamma"], greeks["Vega"], greeks["Theta"], greeks["Rho"]]
+        })
         greeks_df["Value"] = greeks_df["Value"].map(lambda x: f"{x:.4f}")
 
         # Display chosen pricing model
@@ -251,7 +242,7 @@ if st.button("Calculate Profit & Advice"):
 
         capital = max(min_capital, min(max_capital, capital))
 
-        # Pricing summary output with better formatting and timing
+        # Pricing summary output with better formatting
         st.markdown(
             f"""
             ### Pricing Summary
@@ -278,35 +269,89 @@ if st.button("Calculate Profit & Advice"):
         st.write("### Reason for Suggested Capital")
         if explanation:
             reasons = "\n".join(explanation)
-            st.markdown(
-                f"""
+            st.markdown(f"""
             The suggested capital is adjusted due to the following factors observed in the market data and analysis:
             {reasons}
-            """
-            )
+            """)
         else:
-            st.markdown(
-                "The suggested capital is based on your comfortable capital without any adjustments because market indicators show stable conditions."
-            )
+            st.markdown("The suggested capital is based on your comfortable capital without any adjustments because market indicators show stable conditions.")
 
         capitals = list(range(int(min_capital), int(max_capital) + 1, 100))
         profits = []
-        for cap in capitals:
-            contracts = int(cap / (price * 100)) if price > 0 else 0
-            profit = contracts * 100 * (price * 1.05 - price)
-            profits.append(profit)
+        profits_ci_lower = []
+        profits_ci_upper = []
 
-        fig, ax = plt.subplots()
-        ax.plot(capitals, profits, label="Profit")
-        ax.set_xlabel("Capital ($)")
-        ax.set_ylabel("Profit ($)")
-        ax.set_title("Profit vs Capital")
-        ax.legend()
-        st.pyplot(fig)
+        if pricing_model == "Monte Carlo":
+            # For Monte Carlo, compute confidence intervals for profits
+            simulations = 10000
+            np.random.seed(42)
+            dt = T
+            ST = S * np.exp((risk_free_rate - 0.5 * iv**2) * dt + iv * np.sqrt(dt) * np.random.randn(simulations))
+            if option_type == "call":
+                payoffs = np.maximum(ST - strike_price, 0)
+            else:
+                payoffs = np.maximum(strike_price - ST, 0)
+            discounted_payoffs = np.exp(-risk_free_rate * T) * payoffs
+            price_samples = discounted_payoffs
 
-        # --- New Professional Chart: Implied Volatility Surface (Strike vs Expiry) ---
+            for cap in capitals:
+                contracts = int(cap / (price * 100)) if price > 0 else 0
+                profits_samples = contracts * 100 * (price_samples * 1.05 - price_samples)
+                mean_profit = profits_samples.mean()
+                std_profit = profits_samples.std()
+                ci_lower = mean_profit - 1.96 * std_profit / np.sqrt(simulations)
+                ci_upper = mean_profit + 1.96 * std_profit / np.sqrt(simulations)
+                profits.append(mean_profit)
+                profits_ci_lower.append(ci_lower)
+                profits_ci_upper.append(ci_upper)
+        else:
+            # For other models, no CI, just simple profits
+            for cap in capitals:
+                contracts = int(cap / (price * 100)) if price > 0 else 0
+                profit = contracts * 100 * (price * 1.05 - price)
+                profits.append(profit)
+                profits_ci_lower.append(None)
+                profits_ci_upper.append(None)
 
-        # Gather option prices for different strikes & expiries (limit to next 3 expiries)
+        # Plotting with Plotly for interactivity and gridlines
+        fig = go.Figure()
+
+        # Profit trace
+        fig.add_trace(go.Scatter(
+            x=capitals,
+            y=profits,
+            mode='lines+markers',
+            name='Expected Profit',
+            line=dict(color='blue'),
+            hovertemplate='Capital: $%{x}<br>Profit: $%{y:.2f}<extra></extra>',
+        ))
+
+        # Add confidence interval band if Monte Carlo
+        if pricing_model == "Monte Carlo":
+            fig.add_trace(go.Scatter(
+                x=capitals + capitals[::-1],
+                y=profits_ci_upper + profits_ci_lower[::-1],
+                fill='toself',
+                fillcolor='rgba(173,216,230,0.3)',  # light blue
+                line=dict(color='rgba(255,255,255,0)'),
+                hoverinfo="skip",
+                showlegend=True,
+                name="95% Confidence Interval",
+            ))
+
+        fig.update_layout(
+            title='Profit vs Capital',
+            xaxis_title='Capital ($)',
+            yaxis_title='Profit ($)',
+            hovermode='x unified',
+            template='plotly_white',
+            xaxis=dict(showgrid=True, gridcolor='LightGray'),
+            yaxis=dict(showgrid=True, gridcolor='LightGray'),
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # --- Implied Volatility Surface Plot (Matplotlib, unchanged) ---
         ticker_obj = yf.Ticker(ticker)
         expiries = ticker_obj.options[:3]  # next 3 expiry dates
 
@@ -316,14 +361,12 @@ if st.button("Calculate Profit & Advice"):
             try:
                 opt_chain = ticker_obj.option_chain(exp)
                 options_df = opt_chain.calls if option_type == "call" else opt_chain.puts
-                strikes = options_df["strike"].values
-                market_prices = options_df["lastPrice"].values
+                strikes = options_df['strike'].values
+                market_prices = options_df['lastPrice'].values
                 T_exp = (datetime.strptime(exp, "%Y-%m-%d") - datetime.now()).days / 365
                 for K_opt, price_opt in zip(strikes, market_prices):
                     if price_opt > 0 and T_exp > 0:
-                        iv_opt = implied_volatility(
-                            price_opt, S, K_opt, T_exp, risk_free_rate, option_type
-                        )
+                        iv_opt = implied_volatility(price_opt, S, K_opt, T_exp, risk_free_rate, option_type)
                         if iv_opt is not None:
                             iv_surface_data.append((exp, K_opt, iv_opt))
                             strikes_set.add(K_opt)
@@ -331,47 +374,36 @@ if st.button("Calculate Profit & Advice"):
                 continue
 
         if iv_surface_data:
-            # Prepare data for plotting
-            import matplotlib.ticker as mticker
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
 
-            df_iv = pd.DataFrame(iv_surface_data, columns=["Expiry", "Strike", "IV"])
-            piv = df_iv.pivot(index="Strike", columns="Expiry", values="IV")
+            fig3d = plt.figure(figsize=(10, 6))
+            ax = fig3d.add_subplot(111, projection='3d')
 
-            fig2, ax2 = plt.subplots(figsize=(8, 5))
-            c = ax2.imshow(
-                piv.values,
-                aspect="auto",
-                cmap="viridis",
-                origin="lower",
-                extent=[0, piv.shape[1], piv.index.min(), piv.index.max()],
-            )
-            ax2.set_xticks(np.arange(piv.shape[1]) + 0.5)
-            ax2.set_xticklabels(piv.columns, rotation=45, ha="right")
-            ax2.set_ylabel("Strike Price")
-            ax2.set_xlabel("Expiry Date")
-            ax2.set_title(f"Implied Volatility Surface ({option_type.capitalize()} Options)")
+            expiries_unique = sorted(set(x[0] for x in iv_surface_data))
+            expiry_nums = [i for i in range(len(expiries_unique))]
+            expiry_map = dict(zip(expiries_unique, expiry_nums))
 
-            # Colorbar with formatting
-            cbar = fig2.colorbar(c, ax=ax2, format="%.2f")
-            cbar.set_label("Implied Volatility")
+            xs = [expiry_map[x[0]] for x in iv_surface_data]
+            ys = [x[1] for x in iv_surface_data]
+            zs = [x[2] for x in iv_surface_data]
 
-            # Grid and styling
-            ax2.grid(False)
-            st.pyplot(fig2)
-            st.markdown(
-                """
-            ---
-            **Disclaimer**  
-            This application is for educational and informational purposes only. It does not constitute financial, investment, or trading advice.  
-            All calculations and suggestions are based on publicly available data and theoretical models, and may not reflect actual market conditions.  
-            Always consult with a qualified financial advisor before making investment decisions.  
-            The developer of this app is not responsible for any financial losses incurred through the use of this tool.
-            """
-            )
+            sc = ax.scatter(xs, ys, zs, c=zs, cmap='viridis')
 
-        else:
-            st.info("Not enough data to display implied volatility surface.")
+            ax.set_xticks(expiry_nums)
+            ax.set_xticklabels([x[0][5:] for x in expiries_unique], rotation=20)
+            ax.set_xlabel('Expiry Date (YY-MM)')
+            ax.set_ylabel('Strike Price')
+            ax.set_zlabel('Implied Volatility')
+            plt.colorbar(sc, label='IV')
+            plt.title(f"Implied Volatility Surface for {ticker}")
+
+            st.pyplot(fig3d)
+
+        st.write(
+            "_Disclaimer: This tool provides estimates and is not financial advice. "
+            "Always perform your own due diligence before investing._"
+        )
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
-
