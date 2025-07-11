@@ -496,6 +496,8 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     return pdf
 
 # --- Streamlit UI ---
+# ... [previous imports remain the same]
+
 def main():
     st.title("Options Profit & Capital Advisor")
 
@@ -578,7 +580,7 @@ def main():
                     st.session_state.calculation_done = False
                     return
                 
-                S = stock_data["Close"].iloc[-1]
+                S = float(stock_data["Close"].iloc[-1])  # Ensure float conversion
 
                 # Find closest expiry date
                 options_expiries = yf.Ticker(ticker).options
@@ -602,13 +604,13 @@ def main():
                     st.session_state.calculation_done = False
                     return
 
-                iv = implied_volatility(price_market, S, strike_price, T, risk_free_rate, option_type)
+                iv = implied_volatility(float(price_market), S, strike_price, T, risk_free_rate, option_type)
                 if iv is None:
                     st.error("Could not compute implied volatility. Try a closer-to-the-money strike.")
                     st.session_state.calculation_done = False
                     return
 
-                # Calculate Greeks
+                # Calculate Greeks - ensure all values are converted to float
                 greeks = black_scholes_greeks(S, strike_price, T, risk_free_rate, iv, option_type)
                 greeks_df = pd.DataFrame({
                     "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
@@ -625,13 +627,13 @@ def main():
                 # Calculate option price using selected model
                 start = time.time()
                 if pricing_model == "Black-Scholes":
-                    price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
+                    price = float(black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type))
                 elif pricing_model == "Binomial Tree":
-                    price = binomial_tree_price(S, strike_price, T, risk_free_rate, iv, option_type)
+                    price = float(binomial_tree_price(S, strike_price, T, risk_free_rate, iv, option_type))
                 elif pricing_model == "Monte Carlo":
-                    price = monte_carlo_price(S, strike_price, T, risk_free_rate, iv, option_type)
+                    price = float(monte_carlo_price(S, strike_price, T, risk_free_rate, iv, option_type))
                 else:
-                    price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
+                    price = float(black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type))
                 end = time.time()
                 calc_time = end - start
 
@@ -648,14 +650,14 @@ def main():
                 # Z-score calculation
                 window = 20
                 zscore = ((df[ticker] - df[ticker].rolling(window).mean()) / df[ticker].rolling(window).std()).dropna()
-                latest_z = zscore.iloc[-1] if not zscore.empty else 0
+                latest_z = float(zscore.iloc[-1]) if not zscore.empty else 0.0
 
                 # Correlation analysis
-                correlation = returns.corr().loc[ticker].drop(ticker).mean()
-                iv_divergences = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
+                correlation = float(returns.corr().loc[ticker].drop(ticker).mean())
+                iv_divergences = {etf: float(iv - 0.2) for etf in df.columns if etf != ticker}
 
                 # Capital adjustment logic
-                capital = comfortable_capital
+                capital = float(comfortable_capital)
                 if any(d > 0.1 for d in iv_divergences.values()):
                     capital *= 0.6
                 if abs(latest_z) > 2:
@@ -663,7 +665,7 @@ def main():
                 if correlation < 0.5:
                     capital *= 0.8
 
-                capital = max(min_capital, min(max_capital, capital))
+                capital = max(float(min_capital), min(float(max_capital), capital))
 
                 # IV percentile analysis
                 iv_percentile = calculate_iv_percentile(ticker, iv)
@@ -688,15 +690,15 @@ def main():
                 
                 st.session_state.trading_advice = trading_advice
 
-                # Prepare summary DataFrame
+                # Prepare summary DataFrame - ensure all values are strings
                 summary_df = pd.DataFrame({
                     "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time"],
                     "Value": [
-                        f"${float(price_market):.2f}",
-                        f"${float(price):.2f}",
-                        f"{float(iv)*100:.2f}%",
-                        f"${float(capital):.2f}",
-                        f"{float(calc_time):.4f} seconds"
+                        f"${price_market:.2f}",
+                        f"${price:.2f}",
+                        f"{iv*100:.2f}%",
+                        f"${capital:.2f}",
+                        f"{calc_time:.4f} seconds"
                     ]
                 })
                 st.session_state.summary_info = summary_df
@@ -726,8 +728,8 @@ def main():
                     for cap in capitals:
                         contracts = int(cap / (price * 100)) if price > 0 else 0
                         profits_samples = contracts * 100 * (price_samples * 1.05 - price_samples)
-                        mean_profit = profits_samples.mean()
-                        std_profit = profits_samples.std()
+                        mean_profit = float(profits_samples.mean())
+                        std_profit = float(profits_samples.std())
                         ci_lower = mean_profit - 1.96 * std_profit / np.sqrt(simulations)
                         ci_upper = mean_profit + 1.96 * std_profit / np.sqrt(simulations)
                         profits.append(mean_profit)
@@ -736,7 +738,7 @@ def main():
                 else:
                     for cap in capitals:
                         contracts = int(cap / (price * 100)) if price > 0 else 0
-                        profit = contracts * 100 * (price * 1.05 - price)
+                        profit = float(contracts * 100 * (price * 1.05 - price))
                         profits.append(profit)
 
                 fig = go.Figure()
@@ -809,6 +811,7 @@ def main():
             with col1:
                 st.markdown("### Option Greeks")
                 if st.session_state.greeks_df is not None:
+                    # Ensure values are numeric before display
                     greeks_df = st.session_state.greeks_df.copy()
                     greeks_df['Value'] = pd.to_numeric(greeks_df['Value'], errors='coerce')
                     st.dataframe(
@@ -832,7 +835,7 @@ def main():
                     st.markdown("### Volatility Context")
                     st.metric(
                         label="Implied Volatility Percentile",
-                        value=f"{st.session_state.iv_percentile:.0f}th percentile",
+                        value=f"{float(st.session_state.iv_percentile):.0f}th percentile",
                         help="How current IV compares to 1-year history (higher = more extreme)"
                     )
         
