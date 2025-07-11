@@ -696,17 +696,17 @@ def main():
 
                 # Prepare summary DataFrame for export
                 # Prepare summary DataFrame for export
+               # Prepare summary DataFrame for export
                 summary_df = pd.DataFrame({
                    "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time"],
                    "Value": [
-                               f"${float(price_market):.2f}", 
-                               f"${float(price):.2f}",
-                               f"{float(iv)*100:.2f}%", 
-                               f"${float(capital):.2f}", 
-                               f"{float(calc_time):.4f} seconds"
-                                                    ]
+                             f"${float(price_market[0] if isinstance(price_market, np.ndarray) else price_market):.2f}", 
+                             f"${float(price[0] if isinstance(price, np.ndarray) else price):.2f}",
+                             f"{float(iv[0] if isinstance(iv, np.ndarray) else iv)*100:.2f}%", 
+                             f"${float(capital[0] if isinstance(capital, np.ndarray) else capital):.2f}", 
+                             f"{float(calc_time[0] if isinstance(calc_time, np.ndarray) else calc_time):.4f} seconds"
+                            ]
                                            })
-
                 csv = prepare_export_csv(greeks_df, summary_df, trading_advice)
                 st.session_state.export_csv = csv
 
