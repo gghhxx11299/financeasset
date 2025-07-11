@@ -340,63 +340,29 @@ if st.button("Calculate Profit & Advice"):
         )
 
         st.plotly_chart(fig, use_container_width=True)
-
-        summary_df = pd.DataFrame({
+# Export Greeks & Summary CSV
+summary_df = pd.DataFrame({
     "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time (seconds)"],
     "Value": [f"{price_market:.2f}", f"{price:.2f}", f"{iv*100:.2f}%", f"{capital:.2f}", f"{calc_time:.4f}"]
 })
 export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
 csv = export_df.to_csv(index=False).encode('utf-8')
 st.download_button(
-    label="📄 Download Greeks & Summary CSV",
+    label="Download Greeks & Summary CSV",
     data=csv,
     file_name=f"{ticker}_option_analysis.csv",
     mime="text/csv"
 )
 
-# --- Export Profit vs Capital Plot PNG ---
-try:
-    png_bytes = pio.to_image(fig, format="png")  # requires kaleido
-    st.download_button(
-        label="📊 Download Profit vs Capital Plot (PNG)",
-        data=png_bytes,
-        file_name=f"{ticker}_profit_vs_capital.png",
-        mime="image/png"
-    )
-except Exception as e:
-    st.warning(f"Could not generate profit plot image: {e}")
+# Export Plot PNG (requires plotly & kaleido)
+png_bytes = fig.to_image(format="png")
+st.download_button(
+    label="Download Profit vs Capital Plot (PNG)",
+    data=png_bytes,
+    file_name=f"{ticker}_profit_vs_capital.png",
+    mime="image/png"
+)
 
-# --- Implied Volatility Surface Plot PNG Export ---
-try:
-    from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-    buf = io.BytesIO()
-    fig3d.savefig(buf, format="png")
-    buf.seek(0)
-    st.download_button(
-        label="🌀 Download Implied Volatility Surface Plot (PNG)",
-        data=buf,
-        file_name=f"{ticker}_iv_surface.png",
-        mime="image/png"
-    )
-except Exception as e:
-    st.warning(f"Could not export IV surface image: {e}")
-        iv_surface_data = []
-        strikes_set = set()
-        for exp in expiries:
-            try:
-                opt_chain = ticker_obj.option_chain(exp)
-                options_df = opt_chain.calls if option_type == "call" else opt_chain.puts
-                strikes = options_df['strike'].values
-                market_prices = options_df['lastPrice'].values
-                T_exp = (datetime.strptime(exp, "%Y-%m-%d") - datetime.now()).days / 365
-                for K_opt, price_opt in zip(strikes, market_prices):
-                    if price_opt > 0 and T_exp > 0:
-                        iv_opt = implied_volatility(price_opt, S, K_opt, T_exp, risk_free_rate, option_type)
-                        if iv_opt is not None:
-                            iv_surface_data.append((exp, K_opt, iv_opt))
-                            strikes_set.add(K_opt)
-            except Exception:
-                continue
 
         if iv_surface_data:
             from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
