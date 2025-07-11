@@ -181,6 +181,10 @@ if st.button("Calculate Profit & Advice"):
                       })
         greeks_df["Value"] = greeks_df["Value"].map(lambda x: f"{x:.4f}")
 
+        # Display chosen pricing model
+        st.markdown(f"## Pricing Model Selected: **{pricing_model}**")
+
+        # Greeks table
         st.write("### Greeks")
         st.table(greeks_df)
 
@@ -222,19 +226,36 @@ if st.button("Calculate Profit & Advice"):
 
         capital = max(min_capital, min(max_capital, capital))
 
-        st.write(f"### Market Price: ${price_market:.2f}")
-        st.write(f"### Model Price ({pricing_model}): ${price:.2f}")
-        st.write(f"### Implied Volatility (IV): {iv*100:.2f}%")
-        # Removed the line causing error below:
-        # st.write(f"### Greeks: {greeks_text}")
-        st.write(f"### Suggested Capital: ${capital:.2f}")
+        # Pricing summary output with better formatting
+        st.markdown(
+            f"""
+            ### Pricing Summary
 
-        st.write("### Advice:")
+            - **Market Price:** `${price_market:.2f}`
+            - **Model Price ({pricing_model}):** `${price:.2f}`
+            - **Implied Volatility (IV):** `{iv*100:.2f}%`
+            - **Suggested Capital:** `${capital:.2f}`
+            """
+        )
+
+        # Advice section
+        st.write("### Advice")
         if explanation:
             for line in explanation:
                 st.write(f"- {line}")
         else:
             st.write("- No significant adjustments. Capital allocation looks good.")
+
+        # Reason section explaining suggested capital adjustments
+        st.write("### Reason for Suggested Capital")
+        if explanation:
+            reasons = "\n".join(explanation)
+            st.markdown(f"""
+            The suggested capital is adjusted due to the following factors observed in the market data and analysis:
+            {reasons}
+            """)
+        else:
+            st.markdown("The suggested capital is based on your comfortable capital without any adjustments because market indicators show stable conditions.")
 
         capitals = list(range(int(min_capital), int(max_capital) + 1, 100))
         profits = []
@@ -313,4 +334,3 @@ if st.button("Calculate Profit & Advice"):
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
-
