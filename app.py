@@ -247,21 +247,32 @@ def plot_stock_volume(ticker, days_to_expiry):
         
         fig.add_trace(go.Bar(
             x=volume.index,
-            y=volume.values,  # Use .values to ensure 1D array
+            y=volume.values,
             name='Volume',
             marker_color='#1f77b4',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>Volume</b>: %{y:,.0f}<extra></extra>"
         ))
         
         # Add average volume line
-        avg_volume = volume.mean()
-        fig.add_hline(
-            y=avg_volume,
-            line=dict(color='#ff7f0e', width=1.5, dash='dot'),
-            annotation_text=f"Avg: {avg_volume:,.0f}",
-            annotation_position="bottom right"
+        avg_volume = float(volume.mean())
+        fig.add_shape(
+            type="line",
+            x0=volume.index.min(),
+            x1=volume.index.max(),
+            y0=avg_volume,
+            y1=avg_volume,
+            line=dict(color='#ff7f0e', width=1.5, dash='dot')
         )
-        
+        fig.add_annotation(
+            x=volume.index.max(),
+            y=avg_volume,
+            text=f"Avg: {avg_volume:,.0f}",
+            showarrow=False,
+            xanchor='right',
+            yanchor='bottom',
+            font=dict(color="#ff7f0e")
+        )
+
         # Format the layout
         fig.update_layout(
             title=f"<b>{ticker} Trading Volume</b> - Last {days_to_expiry} Days",
@@ -288,6 +299,7 @@ def plot_stock_volume(ticker, days_to_expiry):
     except Exception as e:
         st.error(f"Error generating volume chart: {str(e)}")
         return None
+
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
