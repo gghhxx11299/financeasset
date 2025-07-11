@@ -225,7 +225,7 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 def plot_vix_chart():
-    """Plot clean VIX line chart with proper data conversion"""
+    """Plot clean VIX line chart with proper data handling"""
     try:
         # Get VIX data
         vix_data = yf.download("^VIX", period="3mo", interval="1d", progress=False)
@@ -234,16 +234,16 @@ def plot_vix_chart():
             st.warning("No VIX data available from Yahoo Finance")
             return None
 
-        # Clean and prepare the data - ensure we're working with Series
-        vix_series = vix_data['Close'].dropna()  # This is now a Series
+        # Extract the Close prices as a Series (1D)
+        vix_close = vix_data['Close'].dropna()
         
-        if vix_series.empty:
+        if vix_close.empty:
             st.warning("No valid VIX data available after cleaning")
             return None
 
         # Convert to proper format
-        dates = vix_series.index.to_pydatetime()  # Convert index to datetime objects
-        values = vix_series.tolist()             # Properly convert Series to list
+        dates = vix_close.index.to_numpy()  # Convert index to numpy array
+        values = vix_close.to_numpy()       # Convert values to numpy array
 
         # Create the plot
         fig = go.Figure()
@@ -259,7 +259,7 @@ def plot_vix_chart():
         
         # Add current level marker
         if len(values) > 0:
-            current_vix = values[-1]
+            current_vix = float(values[-1])  # Convert to Python float
             fig.add_hline(
                 y=current_vix,
                 line=dict(color='#ff7f0e', width=1.5, dash='dot'),
@@ -294,7 +294,7 @@ def plot_vix_chart():
     except Exception as e:
         st.error(f"Error generating VIX chart: {str(e)}")
         return None
-# --- Visualization ---
+        
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
     fig = make_subplots(rows=3, cols=1, 
