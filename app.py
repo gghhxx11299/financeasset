@@ -148,9 +148,9 @@ def black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
     gamma = norm.pdf(d1) / (S * sigma * math.sqrt(T))
     vega = S * norm.pdf(d1) * math.sqrt(T) / 100
     theta_call = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
-                  - r * K * math.exp(-r * T) * norm.cdf(d2)) / 365
+                - r * K * math.exp(-r * T) * norm.cdf(d2)) / 365
     theta_put = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
-                 + r * K * math.exp(-r * T) * norm.cdf(-d2)) / 365
+                + r * K * math.exp(-r * T) * norm.cdf(-d2)) / 365
     theta = theta_call if option_type == "call" else theta_put
     rho_call = K * T * math.exp(-r * T) * norm.cdf(d2) / 100
     rho_put = -K * T * math.exp(-r * T) * norm.cdf(-d2) / 100
@@ -196,12 +196,9 @@ def get_us_10yr_treasury_yield():
         response = requests.get(url, timeout=10)
         response.raise_for_status()
 
-        # Read CSV from text response
         csv_data = StringIO(response.text)
         df = pd.read_csv(csv_data)
 
-        # The CSV has a 'Date' column and columns for maturities like '10 Yr'
-        # The most recent date is at the bottom, get the last valid 10 Yr yield
         df = df.dropna(subset=["10 Yr"])
         if df.empty:
             return fallback_yield
@@ -217,12 +214,10 @@ def get_us_10yr_treasury_yield():
 def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     """Calculate how current IV compares to historical levels"""
     try:
-        # Get historical volatility (using realized vol as proxy for IV)
         hist = yf.download(ticker, period=f"{lookback_days}d")["Close"]
         daily_returns = hist.pct_change().dropna()
         realized_vol = daily_returns.std() * np.sqrt(252)  # Annualized
         
-        # Calculate percentile (current IV vs historical realized vol)
         percentile = percentileofscore([realized_vol], current_iv)
         return percentile
     except Exception as e:
@@ -232,13 +227,10 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
 def plot_iv_crisis_signal(ticker, current_iv):
     """Show enhanced historical IV spikes and current position"""
     try:
-        # Get VIX data for market-wide volatility context
         vix = yf.download("^VIX", period="1y")["Close"]
         
-        # Create plot with custom colors
         fig = go.Figure()
         
-        # Add VIX with solid color fill
         fig.add_trace(go.Scatter(
             x=vix.index,
             y=vix,
@@ -249,7 +241,6 @@ def plot_iv_crisis_signal(ticker, current_iv):
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}%<extra></extra>"
         ))
         
-        # Add current IV level
         fig.add_hline(
             y=current_iv*100,
             line=dict(color="#ff4757", width=2, dash="dot"),
@@ -262,7 +253,6 @@ def plot_iv_crisis_signal(ticker, current_iv):
             )
         )
         
-        # Add crisis periods
         crisis_periods = {
             "COVID Crash": pd.Timestamp("2020-03-16"),
             "Dec 2018 Selloff": pd.Timestamp("2018-12-24"),
@@ -302,7 +292,6 @@ def plot_iv_crisis_signal(ticker, current_iv):
             )
         )
         
-        # Add custom range slider
         fig.update_xaxes(
             rangeslider_visible=True,
             rangeselector=dict(
@@ -326,26 +315,22 @@ def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comf
     advice = []
     reasons = []
     
-    # Analyze IV divergence
     high_iv_divergence = any(d > 0.1 for d in iv_divergences.values())
     if high_iv_divergence:
         max_divergence = max(iv_divergences.values())
         advice.append("Reduce position size")
         reasons.append(f"High IV divergence ({max_divergence:.2f} > 0.1) suggests overpriced options relative to sector peers")
     
-    # Analyze Z-score
     extreme_z = abs(latest_z) > 2
     if extreme_z:
         advice.append("Exercise caution")
         reasons.append(f"Extreme price movement (Z-score: {latest_z:.2f}) indicates potential mean reversion")
     
-    # Analyze correlation
     low_correlation = correlation < 0.5
     if low_correlation:
         advice.append("Consider hedging")
         reasons.append(f"Low sector correlation ({correlation:.2f}) reduces hedging effectiveness")
     
-    # Capital adjustment analysis
     capital_ratio = capital / comfortable_capital
     if capital_ratio < 0.7:
         advice.append("Reduce trade size significantly")
@@ -354,7 +339,6 @@ def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comf
         advice.append("Reduce trade size moderately")
         reasons.append(f"Suggested capital ${capital:.0f} is {capital_ratio*100:.0f}% of comfortable amount")
     
-    # Default advice if no warnings
     if not advice:
         advice.append("Normal trading conditions")
         reasons.append("All metrics within normal ranges - standard position sizing appropriate")
@@ -367,13 +351,11 @@ def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comf
 # --- Visualization ---
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
-    # Create subplots
     fig = make_subplots(rows=3, cols=1, 
                        subplot_titles=("Price vs Underlying Asset", 
                                       "Price vs Days to Expiry", 
                                       "Price vs Volatility"))
     
-    # Price vs Underlying (S)
     S_range = np.linspace(0.5*S, 1.5*S, 100)
     prices_S = [black_scholes_price(s, K, T, r, sigma, option_type) for s in S_range]
     fig.add_trace(go.Scatter(
@@ -386,7 +368,6 @@ def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
         hovertemplate="<b>Stock Price</b>: $%{x:.2f}<br><b>Option Price</b>: $%{y:.2f}<extra></extra>"
     ), row=1, col=1)
     
-    # Price vs Time (T)
     T_range = np.linspace(0.01, T*2, 100)
     prices_T = [black_scholes_price(S, K, t, r, sigma, option_type) for t in T_range]
     fig.add_trace(go.Scatter(
@@ -399,7 +380,6 @@ def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
         hovertemplate="<b>Days to Expiry</b>: %{x:.0f}<br><b>Option Price</b>: $%{y:.2f}<extra></extra>"
     ), row=2, col=1)
     
-    # Price vs Volatility (σ)
     sigma_range = np.linspace(0.01, 2*sigma, 100)
     prices_sigma = [black_scholes_price(S, K, T, r, s, option_type) for s in sigma_range]
     fig.add_trace(go.Scatter(
@@ -412,7 +392,6 @@ def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
         hovertemplate="<b>Volatility</b>: %{x:.2f}%<br><b>Option Price</b>: $%{y:.2f}<extra></extra>"
     ), row=3, col=1)
     
-    # Add vertical lines for current values
     fig.add_vline(x=S, row=1, col=1, line=dict(color='#636EFA', dash='dash'), 
                 annotation_text=f'Current Price: ${S:.2f}',
                 annotation_position="top right")
@@ -436,12 +415,10 @@ def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
         plot_bgcolor='rgba(0,0,0,0)'
     )
     
-    # Update y-axis titles
     fig.update_yaxes(title_text="Option Price ($)", row=1, col=1)
     fig.update_yaxes(title_text="Option Price ($)", row=2, col=1)
     fig.update_yaxes(title_text="Option Price ($)", row=3, col=1)
     
-    # Update x-axis titles
     fig.update_xaxes(title_text="Underlying Asset Price ($)", row=1, col=1)
     fig.update_xaxes(title_text="Days to Expiration", row=2, col=1)
     fig.update_xaxes(title_text="Implied Volatility (%)", row=3, col=1)
@@ -450,7 +427,6 @@ def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
 
 # --- Reporting ---
 def prepare_export_csv(greeks_df, summary_df, trading_advice):
-    # Combine all data for CSV export
     greeks_export = greeks_df.rename(columns={"Greek": "Metric"})
     summary_export = summary_df
     advice_export = trading_advice.rename(columns={"Advice": "Metric", "Reason": "Value"})
@@ -464,19 +440,16 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     pdf.add_page()
     pdf.set_font("Arial", size=12)
 
-    # Title
     pdf.set_font("Arial", 'B', size=14)
     pdf.cell(200, 10, "Options Analysis Report", ln=True, align='C')
     pdf.ln(10)
     
-    # Inputs section
     pdf.set_font("Arial", 'B', size=12)
     pdf.cell(200, 10, "Input Parameters", ln=True)
     pdf.set_font("Arial", size=12)
     for key, value in input_data.items():
         pdf.cell(200, 10, f"{key}: {value}", ln=True)
 
-    # Greeks section
     pdf.ln(5)
     pdf.set_font("Arial", 'B', size=12)
     pdf.cell(200, 10, "Greeks", ln=True)
@@ -484,7 +457,6 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     for _, row in greeks_df.iterrows():
         pdf.cell(200, 10, f"{row['Greek']}: {row['Value']}", ln=True)
 
-    # Summary section
     pdf.ln(5)
     pdf.set_font("Arial", 'B', size=12)
     pdf.cell(200, 10, "Summary", ln=True)
@@ -492,7 +464,6 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     for _, row in summary_df.iterrows():
         pdf.cell(200, 10, f"{row['Metric']}: {row['Value']}", ln=True)
 
-    # Trading Advice section
     pdf.ln(5)
     pdf.set_font("Arial", 'B', size=12)
     pdf.cell(200, 10, "Trading Advice", ln=True)
@@ -500,7 +471,6 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     for _, row in trading_advice.iterrows():
         pdf.multi_cell(200, 10, f"{row['Advice']}: {row['Reason']}")
 
-    # Note about plots
     pdf.ln(10)
     pdf.set_font("Arial", 'I', size=10)
     pdf.cell(200, 10, "Note: Interactive plots are available in the web interface", ln=True)
@@ -821,18 +791,12 @@ def main():
             with col1:
                 st.markdown("### Option Greeks")
                 if st.session_state.greeks_df is not None:
-                    st.dataframe(st.session_state.greeks_df.style.format({"Value": "{:.4f}"}).set_properties(**{
-                        'background-color': 'white',
-                        'border': '1px solid #f0f0f0'
-                    }), use_container_width=True)
+                    st.dataframe(st.session_state.greeks_df, use_container_width=True)
             
             with col2:
                 st.markdown("### Summary Metrics")
                 if st.session_state.summary_info is not None:
-                    st.dataframe(st.session_state.summary_info.set_properties(**{
-                        'background-color': 'white',
-                        'border': '1px solid #f0f0f0'
-                    }), use_container_width=True)
+                    st.dataframe(st.session_state.summary_info, use_container_width=True)
             
             with col3:
                 if st.session_state.iv_percentile is not None:
@@ -847,10 +811,7 @@ def main():
         st.markdown("### Trading Advice")
         with st.expander("View detailed trading recommendations"):
             if st.session_state.trading_advice is not None:
-                st.dataframe(st.session_state.trading_advice.set_properties(**{
-                    'background-color': 'white',
-                    'border': '1px solid #f0f0f0'
-                }), use_container_width=True)
+                st.dataframe(st.session_state.trading_advice, use_container_width=True)
         
         # Plots
         if st.session_state.plot_fig is not None:
