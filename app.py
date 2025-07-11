@@ -135,7 +135,7 @@ def monte_carlo_price(S, K, T, r, sigma, option_type="call", simulations=10000):
     else:
         payoffs = np.maximum(K - ST, 0)
     price = np.exp(-r * T) * np.mean(payoffs)
-    return float(price)  # Convert to float to avoid numpy types
+    return float(price)
 
 # --- Greeks Calculations ---
 def black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
@@ -208,7 +208,7 @@ def get_us_10yr_treasury_yield():
             return fallback_yield
 
         latest_yield_str = df["10 Yr"].iloc[-1]
-        return float(latest_yield_str) / 100  # convert from percent to decimal
+        return float(latest_yield_str) / 100
     except Exception:
         return fallback_yield
 
@@ -218,15 +218,15 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     try:
         hist = yf.download(ticker, period=f"{lookback_days}d")["Close"]
         daily_returns = hist.pct_change().dropna()
-        realized_vol = daily_returns.std() * np.sqrt(252)  # Annualized
+        realized_vol = daily_returns.std() * np.sqrt(252)
         
         return float(percentileofscore([realized_vol], current_iv))
     except Exception as e:
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 
-def plot_iv_crisis_signal(ticker, current_iv):
-    """Show enhanced historical IV spikes and current position"""
+def plot_vix_chart():
+    """Plot VIX chart only"""
     try:
         vix = yf.download("^VIX", period="1y")["Close"]
         
@@ -241,18 +241,6 @@ def plot_iv_crisis_signal(ticker, current_iv):
             fillcolor='rgba(106, 17, 203, 0.3)',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}%<extra></extra>"
         ))
-        
-        fig.add_hline(
-            y=current_iv*100,
-            line=dict(color="#ff4757", width=2, dash="dot"),
-            annotation=dict(
-                text=f"Current IV: {current_iv*100:.1f}%",
-                font=dict(color="#ff4757", size=12),
-                bgcolor="white",
-                bordercolor="#ff4757",
-                borderwidth=1
-            )
-        )
         
         crisis_periods = {
             "COVID Crash": pd.Timestamp("2020-03-16"),
@@ -275,7 +263,7 @@ def plot_iv_crisis_signal(ticker, current_iv):
                 )
         
         fig.update_layout(
-            title=f"<b>Volatility Context for {ticker}</b>",
+            title="<b>Market Volatility (VIX)</b>",
             yaxis_title="Volatility Index (VIX)",
             xaxis_title="Date",
             hovermode="x unified",
@@ -307,7 +295,7 @@ def plot_iv_crisis_signal(ticker, current_iv):
         
         return fig
     except Exception as e:
-        st.warning(f"Could not generate volatility plot: {e}")
+        st.warning(f"Could not generate VIX plot: {e}")
         return None
 
 # --- Trading Advice ---
@@ -470,13 +458,26 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     pdf.cell(200, 10, "Trading Advice", ln=True)
     pdf.set_font("Arial", size=12)
     for _, row in trading_advice.iterrows():
-        pdf.multi_cell(200, 10, f"{row['Advice']}: {row['Reason']}")
+        # Handle special characters in advice
+        text = f"{row['Advice']}: {row['Reason']}"
+        try:
+            pdf.multi_cell(200, 10, text.encode('latin-1', 'replace').decode('latin-1'))
+        except:
+            pdf.multi_cell(200, 10, "Trading advice (special characters omitted)")
 
     pdf.ln(10)
     pdf.set_font("Arial", 'I', size=10)
     pdf.cell(200, 10, "Note: Interactive plots are available in the web interface", ln=True)
 
-    return pdf
+    # Save to bytes with error handling
+    try:
+        return pdf.output(dest='S').encode('latin-1', 'replace')
+    except:
+        try:
+            return pdf.output(dest='S').encode('utf-8')
+        except Exception as e:
+            st.error(f"PDF generation error: {str(e)}")
+            return None
 
 # --- Streamlit UI ---
 def main():
@@ -503,8 +504,8 @@ def main():
         st.session_state.bs_sensitivities_fig = None
     if "iv_percentile" not in st.session_state:
         st.session_state.iv_percentile = None
-    if "iv_crisis_fig" not in st.session_state:
-        st.session_state.iv_crisis_fig = None
+    if "vix_fig" not in st.session_state:
+        st.session_state.vix_fig = None
 
     # Input widgets
     st.markdown("### Input Parameters")
@@ -652,9 +653,9 @@ def main():
                 iv_percentile = calculate_iv_percentile(ticker, iv)
                 st.session_state.iv_percentile = iv_percentile
                 
-                # Crisis signal plot
-                iv_crisis_fig = plot_iv_crisis_signal(ticker, iv)
-                st.session_state.iv_crisis_fig = iv_crisis_fig
+                # Generate VIX chart
+                vix_fig = plot_vix_chart()
+                st.session_state.vix_fig = vix_fig
 
                 # Generate trading advice
                 trading_advice = generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital)
@@ -664,7 +665,7 @@ def main():
                     trading_advice = pd.concat([
                         trading_advice,
                         pd.DataFrame({
-                            "Advice": ["⚠️ Market Stress Warning"],
+                            "Advice": ["Market Stress Warning"],
                             "Reason": [f"IV is in top {100-iv_percentile:.0f}% of historical levels - possible crisis ahead"]
                         })
                     ])
@@ -768,8 +769,8 @@ def main():
                 # Generate PDF report
                 try:
                     pdf = generate_pdf_report(st.session_state.input_data, greeks_df, summary_df, trading_advice)
-                    pdf_bytes = pdf.output(dest='S').encode('latin-1')
-                    st.session_state.export_pdf = pdf_bytes
+                    if pdf is not None:
+                        st.session_state.export_pdf = pdf
                 except Exception as e:
                     st.error(f"Failed to generate PDF: {e}")
                     st.session_state.export_pdf = None
@@ -818,8 +819,8 @@ def main():
         if st.session_state.plot_fig is not None:
             st.plotly_chart(st.session_state.plot_fig, use_container_width=True)
         
-        if st.session_state.iv_crisis_fig is not None:
-            st.plotly_chart(st.session_state.iv_crisis_fig, use_container_width=True)
+        if st.session_state.vix_fig is not None:
+            st.plotly_chart(st.session_state.vix_fig, use_container_width=True)
         
         if st.session_state.bs_sensitivities_fig is not None:
             st.plotly_chart(st.session_state.bs_sensitivities_fig, use_container_width=True)
