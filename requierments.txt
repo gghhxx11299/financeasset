@@ -1,9 +1,10 @@
 streamlit
-yfinance
 pandas
 numpy
 matplotlib
 scipy
 requests
 beautifulsoup4
+yfinance
 plotly
+kaleido
