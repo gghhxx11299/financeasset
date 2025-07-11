@@ -197,6 +197,11 @@ if "plot_fig" not in st.session_state:
 # When Calculate button is pressed, run calculations and save results in session_state
 if calculate_clicked:
     try:
+        # Fetch live treasury yield on calculation click
+        live_rate = get_us_10yr_treasury_yield()
+        if live_rate is not None:
+            risk_free_rate = live_rate
+
         T = days_to_expiry / 365
         S = yf.Ticker(ticker).history(period="1d")["Close"].iloc[-1]
 
@@ -213,6 +218,7 @@ if calculate_clicked:
             st.error("No matching expiry date found near the specified days to expiry.")
             st.session_state.calculation_done = False
             st.stop()
+
 
         price_market = get_option_market_price(ticker, option_type, strike_price, expiry_date)
         if price_market is None:
