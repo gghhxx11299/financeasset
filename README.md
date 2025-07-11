@@ -100,8 +100,8 @@ MIT License - Free for personal and commercial use
 CONTACT
 -------
 For support or contributions:
-Email: your.email@example.com
-GitHub: github.com/yourusername
+Email: gabrielmulugeta1@gmail.com
+GitHub: github.com/gghhxx11299
 
 VERSION
 -------
