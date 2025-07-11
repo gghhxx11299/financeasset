@@ -225,7 +225,7 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 def plot_vix_chart():
-    """Plot clean VIX line chart with proper time series data"""
+    """Plot clean VIX line chart with proper 1D data formatting"""
     try:
         # Get VIX data - we'll get 3 months of daily data
         vix_data = yf.download("^VIX", period="3mo", interval="1d", progress=False)
@@ -234,18 +234,16 @@ def plot_vix_chart():
             st.warning("No VIX data available")
             return None
 
-        # Create clean dataframe with just dates and closing prices
-        vix_df = pd.DataFrame({
-            'Date': vix_data.index,
-            'VIX': vix_data['Close']
-        }).reset_index(drop=True)
+        # Convert to 1D arrays explicitly
+        dates = vix_data.index.to_numpy()  # Already 1D
+        vix_values = vix_data['Close'].to_numpy()  # Ensure 1D
 
         # Create the plot
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
-            x=vix_df['Date'],
-            y=vix_df['VIX'],
+            x=dates,
+            y=vix_values,
             mode='lines',
             line=dict(color='#1f77b4', width=2),
             name='VIX',
@@ -253,7 +251,7 @@ def plot_vix_chart():
         ))
         
         # Add current level marker line
-        current_vix = vix_df['VIX'].iloc[-1]
+        current_vix = vix_values[-1]
         fig.add_hline(
             y=current_vix,
             line=dict(color='#ff7f0e', width=1.5, dash='dot'),
@@ -270,7 +268,7 @@ def plot_vix_chart():
                 type='date',
                 tickformat='%b %d',
                 showgrid=True,
-                rangeslider=dict(visible=True)  # Add range slider for zooming
+                rangeslider=dict(visible=True)
             ),
             yaxis=dict(
                 showgrid=True,
@@ -279,7 +277,8 @@ def plot_vix_chart():
             hovermode="x unified",
             template="plotly_white",
             height=500,
-            margin=dict(l=50, r=50, b=50, t=80)
+            margin=dict(l=50, r=50, b=50, t=80),
+            showlegend=False
         )
         
         return fig
