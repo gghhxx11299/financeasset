@@ -445,7 +445,6 @@ def prepare_export_csv(greeks_df, summary_df, trading_advice):
     
     export_df = pd.concat([greeks_export, summary_export, advice_export], ignore_index=True)
     return export_df.to_csv(index=False).encode('utf-8')
-
 def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     """Generate PDF report using FPDF"""
     pdf = FPDF()
@@ -456,7 +455,7 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     pdf.set_font("Arial", 'B', size=14)
     pdf.cell(200, 10, "Options Analysis Report", ln=True, align='C')
     pdf.ln(10)
-    
+
     # Inputs section
     pdf.set_font("Arial", 'B', size=12)
     pdf.cell(200, 10, "Input Parameters", ln=True)
@@ -464,22 +463,20 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     for key, value in input_data.items():
         pdf.cell(200, 10, f"{key}: {value}", ln=True)
 
-    # Greeks section - with NumPy array handling
+    # Greeks section
     pdf.ln(5)
     pdf.set_font("Arial", 'B', size=12)
     pdf.cell(200, 10, "Greeks", ln=True)
     pdf.set_font("Arial", size=12)
     for _, row in greeks_df.iterrows():
-        try:
-            # Handle both scalar and array values
-            value = row['Value']
-            if isinstance(value, np.ndarray):
-                value = float(value.item())  # Extract scalar from array
-            else:
-                value = float(value)
-            pdf.cell(200, 10, f"{row['Greek']}: {value:.4f}", ln=True)
-        except Exception as e:
-            pdf.cell(200, 10, f"{row['Greek']}: Error formatting value", ln=True)
+        greek = row['Greek']
+        value = row['Value']
+        # Ensure value is a float, not a numpy array
+        if isinstance(value, np.ndarray):
+            value = float(value.item())
+        else:
+            value = float(value)
+        pdf.cell(200, 10, f"{greek}: {value:.4f}", ln=True)
 
     # Summary section
     pdf.ln(5)
