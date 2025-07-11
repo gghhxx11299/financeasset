@@ -145,39 +145,28 @@ def get_option_market_price(ticker, option_type, strike, expiry_date):
         st.error(f"Error fetching option market price: {e}")
         return None
 
-def get_us_10yr_treasury_yield(retries=3, timeout=10):
-    url = "https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=yield"
-    for attempt in range(retries):
-        try:
-            response = requests.get(url, timeout=timeout)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
+def get_us_10yr_treasury_yield():
+    try:
+        url = "https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=yield"
+        response = requests.get(url, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-            table = soup.find('table', {'class': 't-chart'})
-            if table is None:
-                raise ValueError("Could not find Treasury yield table on the page.")
+        table = soup.find('table', {'class': 't-chart'})
+        if not table:
+            # Table not found, return fallback quietly
+            return 0.025
 
-            rows = table.find_all('tr')
-            if not rows or len(rows) < 2:
-                raise ValueError("Treasury yield table is empty or malformed.")
+        rows = table.find_all('tr')
+        if not rows or len(rows[-1].find_all('td')) < 6:
+            # Unexpected table structure, return fallback quietly
+            return 0.025
 
-            latest_row = rows[-1].find_all('td')
-            if len(latest_row) < 6:
-                raise ValueError("Latest row in Treasury yield table does not have expected columns.")
-
-            yield_10yr_text = latest_row[5].text.strip()
-            yield_10yr = float(yield_10yr_text) / 100  # convert to decimal
-
-            return yield_10yr
-
-        except (requests.exceptions.RequestException, ValueError) as e:
-            if attempt < retries - 1:
-                time.sleep(2)  # wait before retrying
-                continue
-            else:
-                st.error(f"Error fetching Treasury yield: {e}")
-                # fallback value
-                return 0.025
+        latest_row = rows[-1].find_all('td')
+        yield_10yr = latest_row[5].text.strip()
+        return float(yield_10yr) / 100
+    except Exception:
+        # On any error, return fallback silently (no prints/logs)
+        return 0.025
 
 st.title("Options Profit & Capital Advisor")
 
