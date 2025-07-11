@@ -225,49 +225,94 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 def plot_vix_chart():
-    """Plot simple VIX line chart"""
+    """Plot simple VIX line chart with proper data handling"""
     try:
-        # Get VIX data and ensure it's in the right format
-        vix_data = yf.download("^VIX", period="1y")["Close"]
-        vix_data = vix_data.astype(float)  # Ensure numeric type
+        # Get VIX data and ensure proper formatting
+        vix_data = yf.download("^VIX", period="1y", progress=False)["Close"]
         
+        # Convert to float and handle any potential NA values
+        vix_data = pd.to_numeric(vix_data, errors='coerce').dropna()
+        
+        if vix_data.empty:
+            st.warning("No VIX data available")
+            return None
+
         # Create basic line chart
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
             x=vix_data.index,
-            y=vix_data.values,  # Use .values to get numpy array
+            y=vix_data.values,  # Using .values to ensure numpy array
             mode='lines',
             name="VIX",
-            line=dict(color='blue', width=2),
+            line=dict(color='#1f77b4', width=2),
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}<extra></extra>"
         ))
         
         # Add horizontal line at current VIX level
-        current_vix = float(vix_data.iloc[-1])  # Explicitly convert to float
+        current_vix = float(vix_data.iloc[-1])
         fig.add_hline(
             y=current_vix,
-            line=dict(color='red', width=1, dash='dot'),
+            line=dict(color='#ff7f0e', width=1.5, dash='dot'),
             annotation_text=f"Current: {current_vix:.2f}",
-            annotation_position="bottom right"
+            annotation_position="bottom right",
+            annotation_font=dict(size=10)
         )
         
-        # Basic layout
+        # Layout configuration
         fig.update_layout(
-            title="<b>VIX - Market Volatility Index</b>",
+            title="<b>CBOE Volatility Index (VIX)</b>",
             yaxis_title="VIX Value",
             xaxis_title="Date",
-            hovermode="x",
+            hovermode="x unified",
             template="plotly_white",
-            height=400,
-            margin=dict(l=50, r=50, b=50, t=50),
-            showlegend=False
+            height=450,
+            margin=dict(l=50, r=50, b=50, t=60),
+            showlegend=False,
+            xaxis=dict(
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=1, label="1m", step="month", stepmode="backward"),
+                        dict(count=3, label="3m", step="month", stepmode="backward"),
+                        dict(count=6, label="6m", step="month", stepmode="backward"),
+                        dict(step="all")
+                    ])
+                ),
+                rangeslider=dict(visible=True),
+                type="date"
+            )
         )
         
         return fig
+        
     except Exception as e:
-        st.warning(f"Could not generate VIX plot: {str(e)}")
+        st.error(f"Error generating VIX chart: {str(e)}")
         return None
+
+# Streamlit app display
+st.title("Market Volatility Dashboard")
+
+# Generate and display VIX chart
+with st.spinner("Loading VIX data..."):
+    vix_chart = plot_vix_chart()
+    
+if vix_chart is not None:
+    st.plotly_chart(vix_chart, use_container_width=True)
+    
+    # Display some statistics
+    vix_data = yf.download("^VIX", period="1y", progress=False)["Close"]
+    current_vix = float(vix_data.iloc[-1])
+    vix_mean = float(vix_data.mean())
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Current VIX", f"{current_vix:.2f}")
+    with col2:
+        st.metric("1-Year Average", f"{vix_mean:.2f}")
+        
+    st.caption("The CBOE Volatility Index (VIX) measures market expectation of near-term volatility.")
+else:
+    st.warning("Failed to load VIX data. Please try again later.")
 # --- Trading Advice ---
 def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital):
     """Generate personalized trading advice based on analysis"""
