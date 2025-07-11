@@ -227,61 +227,64 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
 def plot_stock_volume(ticker, days_to_expiry):
     """Plot stock trading volume for the option's time frame"""
     try:
-        # Fetch stock data - yfinance.download() returns a DataFrame
-        stock_data = yf.download(ticker, period=f"{days_to_expiry}d", progress=False)
+        # First try with auto-adjust=True (default)
+        stock_data = yf.download(
+            ticker, 
+            period=f"{days_to_expiry}d",
+            progress=False,
+            auto_adjust=True
+        )
         
-        # Check if we got valid data (should be DataFrame, not tuple)
-        if isinstance(stock_data, tuple):
-            st.warning(f"Unexpected data format received for {ticker}")
-            return None
-            
+        # If no volume, try with auto_adjust=False
+        if 'Volume' not in stock_data.columns:
+            stock_data = yf.download(
+                ticker,
+                period=f"{days_to_expiry}d",
+                progress=False,
+                auto_adjust=False
+            )
+        
+        # Verify we have a DataFrame with Volume data
         if not isinstance(stock_data, pd.DataFrame) or stock_data.empty:
-            st.warning(f"No valid data available for {ticker}")
+            st.warning(f"No data available for {ticker}")
             return None
             
-        # Check for volume column (case insensitive)
-        volume_col = None
-        for col in stock_data.columns:
-            if isinstance(col, str) and 'volume' in col.lower():
-                volume_col = col
-                break
-                
-        if not volume_col:
-            st.warning(f"No volume data available for {ticker}")
+        if 'Volume' not in stock_data.columns:
+            st.warning(f"Volume data not found for {ticker} (columns: {list(stock_data.columns)})")
             return None
 
-        # Clean data
-        stock_data = stock_data.dropna(subset=[volume_col])
-        if stock_data.empty:
-            st.warning("No valid volume data after cleaning")
+        # Clean and prepare data
+        volume_data = stock_data[['Volume']].dropna()
+        if volume_data.empty:
+            st.warning(f"No valid volume data after cleaning for {ticker}")
             return None
 
-        # Create the plot
+        # Create plot
         fig = go.Figure()
         
-        # Add volume bars
+        # Volume bars
         fig.add_trace(go.Bar(
-            x=stock_data.index,
-            y=stock_data[volume_col],
+            x=volume_data.index,
+            y=volume_data['Volume'],
             name='Volume',
             marker_color='#1f77b4',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>Volume</b>: %{y:,.0f}<extra></extra>"
         ))
 
-        # Calculate and add average volume line
-        avg_volume = stock_data[volume_col].mean()
+        # Average line
+        avg_volume = volume_data['Volume'].mean()
         fig.add_shape(
             type="line",
-            x0=stock_data.index[0],
-            x1=stock_data.index[-1],
+            x0=volume_data.index[0],
+            x1=volume_data.index[-1],
             y0=avg_volume,
             y1=avg_volume,
             line=dict(color='#ff7f0e', width=1.5, dash='dot')
         )
 
-        # Add annotation for average
+        # Annotation
         fig.add_annotation(
-            x=stock_data.index[-1],
+            x=volume_data.index[-1],
             y=avg_volume,
             text=f"Avg: {avg_volume:,.0f}",
             showarrow=False,
@@ -290,31 +293,20 @@ def plot_stock_volume(ticker, days_to_expiry):
             font=dict(color="#ff7f0e")
         )
 
-        # Layout settings
+        # Layout
         fig.update_layout(
             title=f"<b>{ticker.upper()} Trading Volume</b> - Last {days_to_expiry} Days",
             xaxis_title="Date",
             yaxis_title="Volume (Shares)",
-            xaxis=dict(
-                type='date',
-                tickformat='%b %d',
-                showgrid=True
-            ),
-            yaxis=dict(
-                showgrid=True,
-                fixedrange=False
-            ),
             hovermode="x unified",
             template="plotly_white",
-            height=500,
-            margin=dict(l=50, r=50, b=50, t=80),
-            showlegend=False
+            height=500
         )
 
         return fig
 
     except Exception as e:
-        st.error(f"Error generating volume chart: {str(e)}")
+        st.error(f"Error generating volume chart for {ticker}: {str(e)}")
         return None
 
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
