@@ -227,22 +227,22 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
 def plot_vix_chart():
     """Plot simple VIX line chart with proper data handling"""
     try:
-        # Get VIX data and ensure proper formatting
-        vix_data = yf.download("^VIX", period="1y", progress=False)["Close"]
+        # Get VIX data
+        vix_df = yf.download("^VIX", period="1y", progress=False)
         
-        # Convert to float and handle any potential NA values
-        vix_data = pd.to_numeric(vix_data, errors='coerce').dropna()
-        
-        if vix_data.empty:
+        if vix_df.empty:
             st.warning("No VIX data available")
             return None
 
+        # Ensure we have numeric data
+        vix_data = pd.to_numeric(vix_df['Close'], errors='coerce').dropna()
+        
         # Create basic line chart
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
             x=vix_data.index,
-            y=vix_data.values,  # Using .values to ensure numpy array
+            y=vix_data,
             mode='lines',
             name="VIX",
             line=dict(color='#1f77b4', width=2),
@@ -288,70 +288,6 @@ def plot_vix_chart():
     except Exception as e:
         st.error(f"Error generating VIX chart: {str(e)}")
         return None
-
-# Streamlit app display
-st.title("Market Volatility Dashboard")
-
-# Generate and display VIX chart
-with st.spinner("Loading VIX data..."):
-    vix_chart = plot_vix_chart()
-    
-if vix_chart is not None:
-    st.plotly_chart(vix_chart, use_container_width=True)
-    
-    # Display some statistics
-    vix_data = yf.download("^VIX", period="1y", progress=False)["Close"]
-    current_vix = float(vix_data.iloc[-1])
-    vix_mean = float(vix_data.mean())
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Current VIX", f"{current_vix:.2f}")
-    with col2:
-        st.metric("1-Year Average", f"{vix_mean:.2f}")
-        
-    st.caption("The CBOE Volatility Index (VIX) measures market expectation of near-term volatility.")
-else:
-    st.warning("Failed to load VIX data. Please try again later.")
-# --- Trading Advice ---
-def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital):
-    """Generate personalized trading advice based on analysis"""
-    advice = []
-    reasons = []
-    
-    high_iv_divergence = any(d > 0.1 for d in iv_divergences.values())
-    if high_iv_divergence:
-        max_divergence = max(iv_divergences.values())
-        advice.append("Reduce position size")
-        reasons.append(f"High IV divergence ({max_divergence:.2f} > 0.1) suggests overpriced options relative to sector peers")
-    
-    extreme_z = abs(latest_z) > 2
-    if extreme_z:
-        advice.append("Exercise caution")
-        reasons.append(f"Extreme price movement (Z-score: {latest_z:.2f}) indicates potential mean reversion")
-    
-    low_correlation = correlation < 0.5
-    if low_correlation:
-        advice.append("Consider hedging")
-        reasons.append(f"Low sector correlation ({correlation:.2f}) reduces hedging effectiveness")
-    
-    capital_ratio = capital / comfortable_capital
-    if capital_ratio < 0.7:
-        advice.append("Reduce trade size significantly")
-        reasons.append(f"Suggested capital ${capital:.0f} is {capital_ratio*100:.0f}% of comfortable amount due to multiple risk factors")
-    elif capital_ratio < 0.9:
-        advice.append("Reduce trade size moderately")
-        reasons.append(f"Suggested capital ${capital:.0f} is {capital_ratio*100:.0f}% of comfortable amount")
-    
-    if not advice:
-        advice.append("Normal trading conditions")
-        reasons.append("All metrics within normal ranges - standard position sizing appropriate")
-    
-    return pd.DataFrame({
-        "Advice": advice,
-        "Reason": reasons
-    })
-
 # --- Visualization ---
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
