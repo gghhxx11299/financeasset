@@ -245,7 +245,7 @@ def plot_iv_crisis_signal(ticker, current_iv):
             name="Market Volatility (VIX)",
             line=dict(color="#6a11cb", width=2),
             fill='tozeroy',
-            fillcolor='rgba(106, 17, 203, 0.3)',  # Solid color instead of gradient
+            fillcolor='rgba(106, 17, 203, 0.3)',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}%<extra></extra>"
         ))
         
@@ -459,7 +459,7 @@ def prepare_export_csv(greeks_df, summary_df, trading_advice):
     return export_df.to_csv(index=False).encode('utf-8')
 
 def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
-    """Generate PDF report using FPDF without image dependencies"""
+    """Generate PDF report using FPDF"""
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
@@ -511,34 +511,7 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
 def main():
     st.title("Options Profit & Capital Advisor")
 
-    # Input widgets
-    st.markdown("### Input Parameters")
-    with st.expander("Configure your option trade"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
-            option_type = st.selectbox("Option Type", ["call", "put"])
-            strike_price = st.number_input("Strike Price", min_value=0.0, value=150.0)
-            days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
-            risk_free_rate = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=0.025)
-            sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
-            
-        with col2:
-            return_type = st.selectbox("Return Type", ["Simple", "Log"])
-            comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
-            max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
-            min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
-            pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
-
-    # --- Buttons ---
-    st.markdown("---")
-    calc_col, export_csv_col, export_pdf_col = st.columns([2, 1, 1])
-
-    with calc_col:
-        calculate_clicked = st.button("Calculate Profit & Advice", key="calculate")
-
-    # Initialize session state variables for storing results
+    # Initialize session state variables
     if "calculation_done" not in st.session_state:
         st.session_state.calculation_done = False
     if "export_csv" not in st.session_state:
@@ -562,7 +535,31 @@ def main():
     if "iv_crisis_fig" not in st.session_state:
         st.session_state.iv_crisis_fig = None
 
-    # When Calculate button is pressed, run calculations and save results in session_state
+    # Input widgets
+    st.markdown("### Input Parameters")
+    with st.expander("Configure your option trade"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
+            option_type = st.selectbox("Option Type", ["call", "put"])
+            strike_price = st.number_input("Strike Price", min_value=0.0, value=150.0)
+            days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
+            risk_free_rate = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=0.025)
+            sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
+            
+        with col2:
+            return_type = st.selectbox("Return Type", ["Simple", "Log"])
+            comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
+            max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
+            min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
+            pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
+
+    # Calculation button
+    st.markdown("---")
+    calculate_clicked = st.button("Calculate Profit & Advice", key="calculate")
+
+    # When Calculate button is pressed
     if calculate_clicked:
         with st.spinner("Calculating option values and generating advice..."):
             try:
@@ -581,7 +578,7 @@ def main():
                     "Pricing Model": pricing_model
                 }
 
-                # Fetch live treasury yield on calculation click
+                # Fetch live treasury yield
                 live_rate = get_us_10yr_treasury_yield()
                 if live_rate is not None:
                     risk_free_rate = live_rate
@@ -595,6 +592,7 @@ def main():
                 
                 S = stock_data["Close"].iloc[-1]
 
+                # Find closest expiry date
                 options_expiries = yf.Ticker(ticker).options
                 expiry_date = None
                 for date in options_expiries:
@@ -609,6 +607,7 @@ def main():
                     st.session_state.calculation_done = False
                     return
 
+                # Get market price and implied volatility
                 price_market = get_option_market_price(ticker, option_type, strike_price, expiry_date)
                 if price_market is None:
                     st.error("Failed to fetch option market price. Try a closer-to-the-money strike.")
@@ -621,20 +620,21 @@ def main():
                     st.session_state.calculation_done = False
                     return
 
+                # Calculate Greeks
                 greeks = black_scholes_greeks(S, strike_price, T, risk_free_rate, iv, option_type)
                 greeks_df = pd.DataFrame({
-                     "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
-                     "Value": [
-                         f"{greeks['Delta']:.4f}",
-                         f"{greeks['Gamma']:.4f}",
-                         f"{greeks['Vega']:.4f}",
-                         f"{greeks['Theta']:.4f}",
-                         f"{greeks['Rho']:.4f}"
-    ]
-})
+                    "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
+                    "Value": [
+                        greeks['Delta'],
+                        greeks['Gamma'],
+                        greeks['Vega'],
+                        greeks['Theta'],
+                        greeks['Rho']
+                    ]
+                })
                 st.session_state.greeks_df = greeks_df
-                greeks_df["Value"] = greeks_df["Value"].map(lambda x: f"{x:.4f}")
 
+                # Calculate option price using selected model
                 start = time.time()
                 if pricing_model == "Black-Scholes":
                     price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
@@ -647,6 +647,7 @@ def main():
                 end = time.time()
                 calc_time = end - start
 
+                # Sector analysis
                 etfs = SECTOR_MAP.get(sector, [])
                 symbols = [ticker] + etfs
                 df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
@@ -656,40 +657,38 @@ def main():
                 else:
                     returns = df.pct_change().dropna()
 
+                # Z-score calculation
                 window = 20
                 zscore = ((df[ticker] - df[ticker].rolling(window).mean()) / df[ticker].rolling(window).std()).dropna()
-
                 latest_z = zscore.iloc[-1] if not zscore.empty else 0
 
+                # Correlation analysis
                 correlation = returns.corr().loc[ticker].drop(ticker).mean()
                 iv_divergences = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
 
+                # Capital adjustment logic
                 capital = comfortable_capital
-                explanation = []
                 if any(d > 0.1 for d in iv_divergences.values()):
-                    explanation.append("High IV divergence → reduce capital")
                     capital *= 0.6
                 if abs(latest_z) > 2:
-                    explanation.append(f"Z-score extreme ({latest_z:.2f}) → reduce capital")
                     capital *= 0.7
                 if correlation < 0.5:
-                    explanation.append(f"Weak correlation ({correlation:.2f}) → reduce capital")
                     capital *= 0.8
 
                 capital = max(min_capital, min(max_capital, capital))
 
-                # Add IV percentile analysis
+                # IV percentile analysis
                 iv_percentile = calculate_iv_percentile(ticker, iv)
                 st.session_state.iv_percentile = iv_percentile
                 
-                # Add crisis signal plot
+                # Crisis signal plot
                 iv_crisis_fig = plot_iv_crisis_signal(ticker, iv)
                 st.session_state.iv_crisis_fig = iv_crisis_fig
 
                 # Generate trading advice
                 trading_advice = generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital)
-                st.session_state.trading_advice = trading_advice
-                # Add warning to trading advice if IV is extreme
+                
+                # Add warning if IV is extreme
                 if iv_percentile and iv_percentile > 90:
                     trading_advice = pd.concat([
                         trading_advice,
@@ -701,28 +700,24 @@ def main():
                 
                 st.session_state.trading_advice = trading_advice
 
-                # Prepare summary DataFrame for export
-                # Prepare summary DataFrame for export
-                try:
-                   summary_df = pd.DataFrame({
-                       "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time"],
-                       "Value": [
-                              f"${float(price_market):.2f}" if not isinstance(price_market, (np.ndarray, list)) else f"${float(price_market[0]):.2f}",
-                              f"${float(price):.2f}" if not isinstance(price, (np.ndarray, list)) else f"${float(price[0]):.2f}",
-                              f"{float(iv)*100:.2f}%" if not isinstance(iv, (np.ndarray, list)) else f"{float(iv[0])*100:.2f}%",
-                              f"${float(capital):.2f}" if not isinstance(capital, (np.ndarray, list)) else f"${float(capital[0]):.2f}",
-                              f"{float(calc_time):.4f} seconds" if not isinstance(calc_time, (np.ndarray, list)) else f"{float(calc_time[0]):.4f} seconds"
-                                ]
-                             })
-                       st.session_state.summary_info = summary_df
-               except Exception as e:
-                      st.error(f"Error creating summary: {str(e)}")
-                      st.session_state.summary_info = pd.DataFrame({"Metric": ["Error"], "Value": [str(e)]})
+                # Prepare summary DataFrame
+                summary_df = pd.DataFrame({
+                    "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time"],
+                    "Value": [
+                        f"${float(price_market):.2f}",
+                        f"${float(price):.2f}",
+                        f"{float(iv)*100:.2f}%",
+                        f"${float(capital):.2f}",
+                        f"{float(calc_time):.4f} seconds"
+                    ]
+                })
+                st.session_state.summary_info = summary_df
 
+                # Prepare CSV export
                 csv = prepare_export_csv(greeks_df, summary_df, trading_advice)
                 st.session_state.export_csv = csv
 
-                # Calculate profit vs capital plot
+                # Profit vs capital plot
                 capitals = list(range(int(min_capital), int(max_capital) + 1, 100))
                 profits = []
                 profits_ci_lower = []
@@ -755,8 +750,6 @@ def main():
                         contracts = int(cap / (price * 100)) if price > 0 else 0
                         profit = contracts * 100 * (price * 1.05 - price)
                         profits.append(profit)
-                        profits_ci_lower.append(None)
-                        profits_ci_upper.append(None)
 
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
@@ -810,8 +803,6 @@ def main():
                     st.error(f"Failed to generate PDF: {e}")
                     st.session_state.export_pdf = None
                 
-                st.session_state.greeks_df = greeks_df
-                st.session_state.summary_info = summary_df
                 st.session_state.calculation_done = True
                 st.success("Calculation complete!")
 
@@ -819,53 +810,79 @@ def main():
                 st.error(f"Calculation failed: {str(e)}")
                 st.session_state.calculation_done = False
 
-    # Display results and export buttons
-    # Display results and export buttons
-if st.session_state.calculation_done:
-    st.markdown("---")
-    st.markdown("## Analysis Results")
-    
-    # Metrics in cards
-    with st.container():
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown("### Option Greeks")
-            if st.session_state.greeks_df is not None and not st.session_state.greeks_df.empty:
-                st.dataframe(st.session_state.greeks_df.style.set_properties(**{
+    # Display results if calculation is done
+    if st.session_state.calculation_done:
+        st.markdown("---")
+        st.markdown("## Analysis Results")
+        
+        # Metrics in cards
+        with st.container():
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown("### Option Greeks")
+                if st.session_state.greeks_df is not None:
+                    st.dataframe(st.session_state.greeks_df.style.format({"Value": "{:.4f}"}).set_properties(**{
+                        'background-color': 'white',
+                        'border': '1px solid #f0f0f0'
+                    }), use_container_width=True)
+            
+            with col2:
+                st.markdown("### Summary Metrics")
+                if st.session_state.summary_info is not None:
+                    st.dataframe(st.session_state.summary_info.set_properties(**{
+                        'background-color': 'white',
+                        'border': '1px solid #f0f0f0'
+                    }), use_container_width=True)
+            
+            with col3:
+                if st.session_state.iv_percentile is not None:
+                    st.markdown("### Volatility Context")
+                    st.metric(
+                        label="Implied Volatility Percentile",
+                        value=f"{st.session_state.iv_percentile:.0f}th percentile",
+                        help="How current IV compares to 1-year history (higher = more extreme)"
+                    )
+        
+        # Trading Advice
+        st.markdown("### Trading Advice")
+        with st.expander("View detailed trading recommendations"):
+            if st.session_state.trading_advice is not None:
+                st.dataframe(st.session_state.trading_advice.set_properties(**{
                     'background-color': 'white',
                     'border': '1px solid #f0f0f0'
                 }), use_container_width=True)
-            else:
-                st.warning("No Greeks data available")
+        
+        # Plots
+        if st.session_state.plot_fig is not None:
+            st.plotly_chart(st.session_state.plot_fig, use_container_width=True)
+        
+        if st.session_state.iv_crisis_fig is not None:
+            st.plotly_chart(st.session_state.iv_crisis_fig, use_container_width=True)
+        
+        if st.session_state.bs_sensitivities_fig is not None:
+            st.plotly_chart(st.session_state.bs_sensitivities_fig, use_container_width=True)
+        
+        # Export buttons
+        st.markdown("---")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.session_state.export_csv is not None:
+                st.download_button(
+                    label="Download CSV Report",
+                    data=st.session_state.export_csv,
+                    file_name="options_analysis_report.csv",
+                    mime="text/csv"
+                )
         
         with col2:
-            st.markdown("### Summary Metrics")
-            if st.session_state.summary_info is not None and not st.session_state.summary_info.empty:
-                st.dataframe(st.session_state.summary_info.style.set_properties(**{
-                    'background-color': 'white',
-                    'border': '1px solid #f0f0f0'
-                }), use_container_width=True)
-            else:
-                st.warning("No summary data available")
-        
-        with col3:
-            if st.session_state.iv_percentile is not None:
-                st.markdown("### Volatility Context")
-                st.metric(
-                    label="Implied Volatility Percentile",
-                    value=f"{st.session_state.iv_percentile:.0f}th percentile",
-                    help="How current IV compares to 1-year history (higher = more extreme)"
+            if st.session_state.export_pdf is not None:
+                st.download_button(
+                    label="Download PDF Report",
+                    data=st.session_state.export_pdf,
+                    file_name="options_analysis_report.pdf",
+                    mime="application/pdf"
                 )
-    
-    # Trading Advice
-    st.markdown("### Trading Advice")
-    with st.expander("View detailed trading recommendations"):
-        if st.session_state.trading_advice is not None and not st.session_state.trading_advice.empty:
-            st.dataframe(st.session_state.trading_advice.style.set_properties(**{
-                'background-color': 'white',
-                'border': '1px solid #f0f0f0'
-            }), use_container_width=True)
-        else:
-            st.warning("No trading advice available")
+
 if __name__ == "__main__":
     main()
