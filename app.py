@@ -78,7 +78,10 @@ def generate_pdf_report(input_data, greeks_df, summary_df, plot_path=None):
         pdf.ln(10)
         pdf.set_font("Arial", 'B', size=12)
         pdf.cell(200, 10, "Profit vs Capital Plot", ln=True)
-        pdf.image(plot_path, x=10, w=180)
+        try:
+            pdf.image(plot_path, x=10, w=180)
+        except Exception as e:
+            st.warning(f"Could not include plot in PDF: {e}")
 
     return pdf
 
@@ -106,7 +109,7 @@ SECTOR_MAP = {
     "transportation": ["IYT", "XTN"],
 }
 
-# Pricing and Greeks functions (same as your original code)...
+# Pricing and Greeks functions
 def black_scholes_price(S, K, T, r, sigma, option_type="call"):
     if T <= 0:
         return max(0.0, S - K) if option_type == "call" else max(0.0, K - S)
@@ -239,7 +242,7 @@ min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
 pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
 
 # --- Buttons ---
-calc_col, export_csv_col, export_png_col, export_pdf_col = st.columns([2, 1, 1, 1])
+calc_col, export_csv_col, export_png_col, export_pdf_col = st.columns([2, 1.5, 1.5, 1.5])
 
 with calc_col:
     calculate_clicked = st.button("Calculate Profit & Advice")
@@ -304,7 +307,6 @@ if calculate_clicked:
             st.session_state.calculation_done = False
             st.stop()
 
-
         price_market = get_option_market_price(ticker, option_type, strike_price, expiry_date)
         if price_market is None:
             st.error("Failed to fetch option market price. Try a closer-to-the-money strike.")
@@ -344,7 +346,6 @@ if calculate_clicked:
             returns = (df / df.shift(1)).apply(np.log).dropna()
         else:
             returns = df.pct_change().dropna()
-
 
         window = 20
         zscore = ((df[ticker] - df[ticker].rolling(window).mean()) / df[ticker].rolling(window).std()).dropna()
@@ -455,8 +456,13 @@ if calculate_clicked:
         plt.close()
 
         # Generate PDF report
-        pdf = generate_pdf_report(st.session_state.input_data, greeks_df, summary_df, plot_path)
-        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        try:
+            pdf = generate_pdf_report(st.session_state.input_data, greeks_df, summary_df, plot_path)
+            pdf_bytes = pdf.output(dest='S').encode('latin-1')
+            st.session_state.export_pdf = pdf_bytes
+        except Exception as e:
+            st.error(f"Failed to generate PDF: {e}")
+            st.session_state.export_pdf = None
         
         # Store everything in session state
         st.session_state.greeks_df = greeks_df
@@ -464,7 +470,6 @@ if calculate_clicked:
         st.session_state.export_csv = csv
         st.session_state.plot_fig = fig
         st.session_state.export_png = prepare_export_png(fig)
-        st.session_state.export_pdf = pdf_bytes
         st.session_state.plot_path = plot_path
         st.session_state.calculation_done = True
         st.success("Calculation done!")
@@ -489,8 +494,7 @@ if st.session_state.calculation_done:
             label="Download Data (CSV)",
             data=st.session_state.export_csv,
             file_name=f"{ticker}_option_data.csv",
-            mime="text/csv",
-            disabled=not st.session_state.calculation_done
+            mime="text/csv"
         )
 
     with export_png_col:
@@ -499,8 +503,7 @@ if st.session_state.calculation_done:
                 label="Download Plot (PNG)",
                 data=st.session_state.export_png,
                 file_name=f"{ticker}_profit_vs_capital.png",
-                mime="image/png",
-                disabled=not st.session_state.calculation_done
+                mime="image/png"
             )
         else:
             st.info("PNG export not available (Kaleido not installed or error).")
@@ -511,9 +514,10 @@ if st.session_state.calculation_done:
                 label="Download Report (PDF)",
                 data=st.session_state.export_pdf,
                 file_name=f"{ticker}_option_report.pdf",
-                mime="application/pdf",
-                disabled=not st.session_state.calculation_done
+                mime="application/pdf"
             )
+        else:
+            st.info("PDF report not available")
 
 else:
     st.info("Click 'Calculate Profit & Advice' to generate data and export options.")
@@ -524,4 +528,3 @@ if st.session_state.get("plot_path") and os.path.exists(st.session_state.plot_pa
         os.remove(st.session_state.plot_path)
     except:
         pass
-
