@@ -1,10 +1,9 @@
 streamlit
+datetime
+yfinance
 pandas
 numpy
-matplotlib
 scipy
+plotly
 requests
 beautifulsoup4
-yfinance
-plotly
-kaleido
