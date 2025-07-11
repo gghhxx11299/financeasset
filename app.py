@@ -227,18 +227,22 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
 def plot_stock_volume(ticker, days_to_expiry):
     """Plot stock trading volume for the option's time frame"""
     try:
-        # Fetch stock data with volume information
+        # Fetch stock data - yfinance.download() returns a DataFrame
         stock_data = yf.download(ticker, period=f"{days_to_expiry}d", progress=False)
         
-        # Check if data is valid
-        if stock_data.empty:
-            st.warning(f"No data available for {ticker}")
+        # Check if we got valid data (should be DataFrame, not tuple)
+        if isinstance(stock_data, tuple):
+            st.warning(f"Unexpected data format received for {ticker}")
+            return None
+            
+        if not isinstance(stock_data, pd.DataFrame) or stock_data.empty:
+            st.warning(f"No valid data available for {ticker}")
             return None
             
         # Check for volume column (case insensitive)
         volume_col = None
         for col in stock_data.columns:
-            if 'volume' in col.lower():
+            if isinstance(col, str) and 'volume' in col.lower():
                 volume_col = col
                 break
                 
@@ -312,7 +316,6 @@ def plot_stock_volume(ticker, days_to_expiry):
     except Exception as e:
         st.error(f"Error generating volume chart: {str(e)}")
         return None
-
 
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
