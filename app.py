@@ -175,13 +175,15 @@ if st.button("Calculate Profit & Advice"):
             st.stop()
 
         greeks = black_scholes_greeks(S, strike_price, T, risk_free_rate, iv, option_type)
-        greeks_text = (
-            f"Delta: {greeks['Delta']:.4f} | "
-            f"Gamma: {greeks['Gamma']:.4f} | "
-            f"Vega: {greeks['Vega']:.4f} | "
-            f"Theta: {greeks['Theta']:.4f} | "
-            f"Rho: {greeks['Rho']:.4f}"
-        )
+        greeks_df = pd.DataFrame({
+          "Greek": ["Delta", "Gamma", "Vega", "Theta", "Rho"],
+          "Value": [greeks["Delta"], greeks["Gamma"], greeks["Vega"], greeks["Theta"], greeks["Rho"]]
+                         })
+        greeks_df["Value"] = greeks_df["Value"].map(lambda x: f"{x:.4f}")
+
+        st.write("### Greeks")
+        st.table(greeks_df)
+          )
 
         if pricing_model == "Black-Scholes":
             price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
