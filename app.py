@@ -228,24 +228,21 @@ def plot_vix_chart():
     """Plot simple VIX line chart with proper data handling"""
     try:
         # Get VIX data
-        vix_data = yf.download("^VIX", period="1y", progress=False)['Close']
+        vix_data = yf.download("^VIX", period="1y", progress=False)
         
         if vix_data.empty:
             st.warning("No VIX data available")
             return None
 
-        # Create DataFrame with proper datetime index
-        vix_df = pd.DataFrame({
-            'Date': vix_data.index,
-            'VIX': vix_data.values
-        }).dropna()
-
+        # Reset index to make Date a column
+        vix_df = vix_data.reset_index()
+        
         # Create basic line chart
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
             x=vix_df['Date'],
-            y=vix_df['VIX'],
+            y=vix_df['Close'],
             mode='lines',
             name="VIX",
             line=dict(color='#1f77b4', width=2),
@@ -253,7 +250,7 @@ def plot_vix_chart():
         ))
         
         # Add horizontal line at current VIX level
-        current_vix = float(vix_df['VIX'].iloc[-1])
+        current_vix = float(vix_df['Close'].iloc[-1])
         fig.add_hline(
             y=current_vix,
             line=dict(color='#ff7f0e', width=1.5, dash='dot'),
