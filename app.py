@@ -238,14 +238,14 @@ def plot_iv_crisis_signal(ticker, current_iv):
         # Create plot with custom colors
         fig = go.Figure()
         
-        # Add VIX with gradient coloring
+        # Add VIX with solid color fill
         fig.add_trace(go.Scatter(
             x=vix.index,
             y=vix,
             name="Market Volatility (VIX)",
             line=dict(color="#6a11cb", width=2),
             fill='tozeroy',
-            fillcolor='linear-gradient(to bottom, #6a11cb 0%, #2575fc 100%)',
+            fillcolor='rgba(106, 17, 203, 0.3)',  # Solid color instead of gradient
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}%<extra></extra>"
         ))
         
@@ -695,10 +695,17 @@ def main():
                 st.session_state.trading_advice = trading_advice
 
                 # Prepare summary DataFrame for export
+                # Prepare summary DataFrame for export
                 summary_df = pd.DataFrame({
-                    "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time (seconds)"],
-                    "Value": [f"{price_market:.2f}", f"{price:.2f}", f"{iv*100:.2f}%", f"{capital:.2f}", f"{calc_time:.4f}"]
-                })
+                   "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time"],
+                   "Value": [
+                               f"${float(price_market):.2f}", 
+                               f"${float(price):.2f}",
+                               f"{float(iv)*100:.2f}%", 
+                               f"${float(capital):.2f}", 
+                               f"{float(calc_time):.4f} seconds"
+                                                    ]
+                                           })
 
                 csv = prepare_export_csv(greeks_df, summary_df, trading_advice)
                 st.session_state.export_csv = csv
