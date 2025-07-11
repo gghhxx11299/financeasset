@@ -225,7 +225,8 @@ if st.button("Calculate Profit & Advice"):
         st.write(f"### Market Price: ${price_market:.2f}")
         st.write(f"### Model Price ({pricing_model}): ${price:.2f}")
         st.write(f"### Implied Volatility (IV): {iv*100:.2f}%")
-        st.write(f"### Greeks: {greeks_text}")
+        # Removed the line causing error below:
+        # st.write(f"### Greeks: {greeks_text}")
         st.write(f"### Suggested Capital: ${capital:.2f}")
 
         st.write("### Advice:")
