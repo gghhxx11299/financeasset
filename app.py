@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 import numpy as np
 import requests
+from requests.exceptions import RequestException
 from bs4 import BeautifulSoup
 
 # --- Sector ETFs ---
@@ -36,100 +37,146 @@ SECTOR_MAP = {
 def black_scholes_price(S, K, T, r, sigma, option_type="call"):
     if T <= 0:
         return max(0.0, S - K) if option_type == "call" else max(0.0, K - S)
-    d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
-    d2 = d1 - sigma * math.sqrt(T)
-    if option_type == "call":
-        return S * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2)
-    else:
-        return K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+    try:
+        d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
+        d2 = d1 - sigma * math.sqrt(T)
+        if option_type == "call":
+            return S * norm.cdf(d1) - K * math.exp(-r * T) * norm.cdf(d2)
+        else:
+            return K * math.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+    except Exception as e:
+        st.error(f"Error calculating Black-Scholes price: {e}")
+        return None
 
 def binomial_tree_price(S, K, T, r, sigma, option_type="call", steps=100):
-    dt = T / steps
-    u = math.exp(sigma * math.sqrt(dt))
-    d = 1 / u
-    p = (math.exp(r * dt) - d) / (u - d)
+    try:
+        dt = T / steps
+        u = math.exp(sigma * math.sqrt(dt))
+        d = 1 / u
+        p = (math.exp(r * dt) - d) / (u - d)
 
-    prices = [S * (u ** j) * (d ** (steps - j)) for j in range(steps + 1)]
-    if option_type == "call":
-        values = [max(0, price - K) for price in prices]
-    else:
-        values = [max(0, K - price) for price in prices]
+        prices = [S * (u ** j) * (d ** (steps - j)) for j in range(steps + 1)]
+        if option_type == "call":
+            values = [max(0, price - K) for price in prices]
+        else:
+            values = [max(0, K - price) for price in prices]
 
-    for i in range(steps - 1, -1, -1):
-        for j in range(i + 1):
-            values[j] = (p * values[j + 1] + (1 - p) * values[j]) * math.exp(-r * dt)
+        for i in range(steps - 1, -1, -1):
+            for j in range(i + 1):
+                values[j] = (p * values[j + 1] + (1 - p) * values[j]) * math.exp(-r * dt)
 
-    return values[0]
+        return values[0]
+    except Exception as e:
+        st.error(f"Error calculating Binomial Tree price: {e}")
+        return None
 
 def monte_carlo_price(S, K, T, r, sigma, option_type="call", simulations=10000):
-    np.random.seed(42)
-    dt = T
-    ST = S * np.exp((r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * np.random.randn(simulations))
-    if option_type == "call":
-        payoffs = np.maximum(ST - K, 0)
-    else:
-        payoffs = np.maximum(K - ST, 0)
-    price = np.exp(-r * T) * np.mean(payoffs)
-    return price
+    try:
+        np.random.seed(42)
+        dt = T
+        ST = S * np.exp((r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * np.random.randn(simulations))
+        if option_type == "call":
+            payoffs = np.maximum(ST - K, 0)
+        else:
+            payoffs = np.maximum(K - ST, 0)
+        price = np.exp(-r * T) * np.mean(payoffs)
+        return price
+    except Exception as e:
+        st.error(f"Error calculating Monte Carlo price: {e}")
+        return None
 
 def black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
-    if T <= 0 or sigma == 0:
-        return dict(Delta=0, Gamma=0, Vega=0, Theta=0, Rho=0)
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
-    d2 = d1 - sigma * math.sqrt(T)
-    delta = norm.cdf(d1) if option_type == "call" else -norm.cdf(-d1)
-    gamma = norm.pdf(d1) / (S * sigma * math.sqrt(T))
-    vega = S * norm.pdf(d1) * math.sqrt(T) / 100
-    theta_call = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
-                  - r * K * math.exp(-r * T) * norm.cdf(d2)) / 365
-    theta_put = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
-                 + r * K * math.exp(-r * T) * norm.cdf(-d2)) / 365
-    theta = theta_call if option_type == "call" else theta_put
-    rho_call = K * T * math.exp(-r * T) * norm.cdf(d2) / 100
-    rho_put = -K * T * math.exp(-r * T) * norm.cdf(-d2) / 100
-    rho = rho_call if option_type == "call" else rho_put
+    try:
+        if T <= 0 or sigma == 0:
+            return dict(Delta=0, Gamma=0, Vega=0, Theta=0, Rho=0)
+        d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+        d2 = d1 - sigma * math.sqrt(T)
+        delta = norm.cdf(d1) if option_type == "call" else -norm.cdf(-d1)
+        gamma = norm.pdf(d1) / (S * sigma * math.sqrt(T))
+        vega = S * norm.pdf(d1) * math.sqrt(T) / 100
+        theta_call = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
+                      - r * K * math.exp(-r * T) * norm.cdf(d2)) / 365
+        theta_put = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
+                     + r * K * math.exp(-r * T) * norm.cdf(-d2)) / 365
+        theta = theta_call if option_type == "call" else theta_put
+        rho_call = K * T * math.exp(-r * T) * norm.cdf(d2) / 100
+        rho_put = -K * T * math.exp(-r * T) * norm.cdf(-d2) / 100
+        rho = rho_call if option_type == "call" else rho_put
 
-    return dict(Delta=delta, Gamma=gamma, Vega=vega, Theta=theta, Rho=rho)
+        return dict(Delta=delta, Gamma=gamma, Vega=vega, Theta=theta, Rho=rho)
+    except Exception as e:
+        st.error(f"Error calculating Greeks: {e}")
+        return dict(Delta=0, Gamma=0, Vega=0, Theta=0, Rho=0)
 
 def implied_volatility(option_market_price, S, K, T, r, option_type="call", tol=1e-5, max_iter=100):
-    sigma_low, sigma_high = 0.0001, 5.0
-    for _ in range(max_iter):
-        sigma_mid = (sigma_low + sigma_high) / 2
-        price = black_scholes_price(S, K, T, r, sigma_mid, option_type)
-        if abs(price - option_market_price) < tol:
-            return sigma_mid
-        if price > option_market_price:
-            sigma_high = sigma_mid
-        else:
-            sigma_low = sigma_mid
-    return None
+    try:
+        sigma_low, sigma_high = 0.0001, 5.0
+        for _ in range(max_iter):
+            sigma_mid = (sigma_low + sigma_high) / 2
+            price = black_scholes_price(S, K, T, r, sigma_mid, option_type)
+            if price is None:
+                return None
+            if abs(price - option_market_price) < tol:
+                return sigma_mid
+            if price > option_market_price:
+                sigma_high = sigma_mid
+            else:
+                sigma_low = sigma_mid
+        return None
+    except Exception as e:
+        st.error(f"Error computing implied volatility: {e}")
+        return None
 
 def get_option_market_price(ticker, option_type, strike, expiry_date):
-    stock = yf.Ticker(ticker)
     try:
+        stock = yf.Ticker(ticker)
         if expiry_date not in stock.options:
+            st.error(f"Expiry date {expiry_date} not available for {ticker}.")
             return None
         opt_chain = stock.option_chain(expiry_date)
         options = opt_chain.calls if option_type == "call" else opt_chain.puts
         row = options[options['strike'] == strike]
-        return None if row.empty else row.iloc[0]['lastPrice']
-    except:
+        if row.empty:
+            st.error(f"No option found for strike {strike} on {expiry_date} for {ticker}.")
+            return None
+        return row.iloc[0]['lastPrice']
+    except Exception as e:
+        st.error(f"Error fetching option market price: {e}")
         return None
 
 def get_us_10yr_treasury_yield():
     try:
         url = "https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=yield"
         response = requests.get(url, timeout=5)
+        response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 
         table = soup.find('table', {'class': 't-chart'})
-        rows = table.find_all('tr')
-        latest_row = rows[-1].find_all('td')
-        yield_10yr = latest_row[5].text.strip()
+        if not table:
+            st.error("Could not find Treasury yield table on the page.")
+            return 0.025  # fallback
 
+        rows = table.find_all('tr')
+        if not rows or len(rows) < 2:
+            st.error("Treasury yield table does not contain enough rows.")
+            return 0.025  # fallback
+
+        latest_row = rows[-1].find_all('td')
+        if len(latest_row) < 6:
+            st.error("Treasury yield row format changed, cannot read 10Y yield.")
+            return 0.025
+
+        yield_10yr = latest_row[5].text.strip()
         return float(yield_10yr) / 100
-    except Exception:
-        return 0.025  # fallback 2.5%
+    except requests.exceptions.RequestException as req_err:
+        st.error(f"Network error fetching treasury yield: {req_err}")
+        return 0.025
+    except ValueError as val_err:
+        st.error(f"Value error processing treasury yield: {val_err}")
+        return 0.025
+    except Exception as e:
+        st.error(f"Unexpected error fetching treasury yield: {e}")
+        return 0.025
 
 st.title("Options Profit & Capital Advisor")
 
@@ -149,7 +196,11 @@ pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree",
 if st.button("Calculate Profit & Advice"):
     try:
         T = days_to_expiry / 365
-        S = yf.Ticker(ticker).history(period="1d")["Close"].iloc[-1]
+        try:
+            S = yf.Ticker(ticker).history(period="1d")["Close"].iloc[-1]
+        except Exception as e:
+            st.error(f"Error fetching current stock price for {ticker}: {e}")
+            st.stop()
 
         options_expiries = yf.Ticker(ticker).options
         expiry_date = None
@@ -197,9 +248,17 @@ if st.button("Calculate Profit & Advice"):
         else:
             price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
 
+        if price is None:
+            st.error("Error calculating model price.")
+            st.stop()
+
         etfs = SECTOR_MAP.get(sector, [])
         symbols = [ticker] + etfs
-        df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
+        try:
+            df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
+        except Exception as e:
+            st.error(f"Error fetching ETF price data: {e}")
+            st.stop()
 
         if return_type == "Log":
             returns = (df / df.shift(1)).apply(np.log).dropna()
@@ -293,7 +352,8 @@ if st.button("Calculate Profit & Advice"):
                         if iv_opt is not None:
                             iv_surface_data.append((exp, K_opt, iv_opt))
                             strikes_set.add(K_opt)
-            except Exception:
+            except Exception as e:
+                st.error(f"Error processing IV surface data for expiry {exp}: {e}")
                 continue
 
         if iv_surface_data:
@@ -328,9 +388,8 @@ if st.button("Calculate Profit & Advice"):
             The developer of this app is not responsible for any financial losses incurred through the use of this tool.
             """)
 
-
         else:
             st.info("Not enough data to display implied volatility surface.")
 
     except Exception as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"An error occurred during calculation: {e}")
