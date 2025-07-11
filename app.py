@@ -205,6 +205,79 @@ def get_us_10yr_treasury_yield():
     except Exception:
         return fallback_yield
 
+# Add this function to generate trading advice
+def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital):
+    advice = []
+    reasons = []
+    
+    # Analyze IV divergence
+    high_iv_divergence = any(d > 0.1 for d in iv_divergences.values())
+    if high_iv_divergence:
+        max_divergence = max(iv_divergences.values())
+        advice.append("Reduce position size due to high IV divergence")
+        reasons.append(f"IV divergence of {max_divergence:.2f} detected (threshold > 0.1). This suggests the option may be overpriced compared to sector peers.")
+    
+    # Analyze Z-score
+    extreme_z = abs(latest_z) > 2
+    if extreme_z:
+        advice.append("Caution: Extreme price movement detected")
+        reasons.append(f"Z-score of {latest_z:.2f} indicates the stock is trading significantly away from its recent mean (threshold > |2|). This increases reversal risk.")
+    
+    # Analyze correlation
+    low_correlation = correlation < 0.5
+    if low_correlation:
+        advice.append("Diversify or hedge positions")
+        reasons.append(f"Low sector correlation ({correlation:.2f}) means sector ETFs aren't providing good hedges (threshold < 0.5).")
+    
+    # Capital adjustment analysis
+    capital_ratio = capital / comfortable_capital
+    if capital_ratio < 0.7:
+        advice.append("Consider significantly smaller position than usual")
+        reasons.append(f"Suggested capital ({capital:.2f}) is {capital_ratio*100:.0f}% of your comfortable amount due to multiple risk factors.")
+    elif capital_ratio < 0.9:
+        advice.append("Consider moderately smaller position than usual")
+        reasons.append(f"Suggested capital ({capital:.2f}) is {capital_ratio*100:.0f}% of your comfortable amount due to some risk factors.")
+    
+    # If no warnings
+    if not advice:
+        advice.append("Normal trading conditions detected")
+        reasons.append("All metrics are within normal ranges - you may trade your usual size")
+    
+    return pd.DataFrame({
+        "Advice": advice,
+        "Reason": reasons
+    })
+
+# In your calculation section, after computing all metrics but before displaying results, add:
+trading_advice = generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital)
+st.session_state.trading_advice = trading_advice
+
+# In your results display section (after the Summary section), add:
+if st.session_state.calculation_done:
+    # ... existing code ...
+    
+    st.subheader("Trading Advice")
+    st.dataframe(st.session_state.trading_advice)
+    
+    # Add explanation of metrics
+    with st.expander("Understanding the Advice"):
+        st.markdown("""
+        **How we determine trading advice:**
+        
+        - **IV Divergence**: Measures how different this option's implied volatility is from sector peers.  
+          *> 0.1 suggests overpriced options*
+          
+        - **Z-Score**: Shows how far the stock price is from its recent average.  
+          *> |2| suggests overextended move*
+          
+        - **Sector Correlation**: Measures how well sector ETFs hedge this stock.  
+          *< 0.5 suggests poor hedging*
+          
+        - **Capital Adjustment**: Compares suggested capital to your comfortable amount.  
+          *< 70% suggests high risk environment*
+        """)
+        
+
 # --- Streamlit UI ---
 st.title("Options Profit & Capital Advisor")
 
