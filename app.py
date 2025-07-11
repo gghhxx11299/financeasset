@@ -695,19 +695,21 @@ def main():
                 st.session_state.trading_advice = trading_advice
 
                 # Prepare summary DataFrame for export
-                # Prepare summary DataFrame for export
-               # Prepare summary DataFrame for export
                 try:
-                   summary_df = pd.DataFrame({
-                      "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time"],
-                      "Value": [
-                              f"${float(price_market[0] if isinstance(price_market, np.ndarray) else price_market):.2f}", 
-       
-        ]
-    })
-except Exception as e:
-    st.error(f"Error formatting results: {str(e)}")
-    summary_df = pd.DataFrame()  # return empty dataframe as fallback
+                    summary_df = pd.DataFrame({
+                        "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time"],
+                        "Value": [
+                            f"${float(price_market[0] if isinstance(price_market, np.ndarray) else price_market):.2f}", 
+                            f"${float(price[0] if isinstance(price, np.ndarray) else price):.2f}",
+                            f"{float(iv[0] if isinstance(iv, np.ndarray) else iv)*100:.2f}%", 
+                            f"${float(capital[0] if isinstance(capital, np.ndarray) else capital):.2f}", 
+                            f"{float(calc_time[0] if isinstance(calc_time, np.ndarray) else calc_time):.4f} seconds"
+                        ]
+                    })
+                except Exception as e:
+                    st.error(f"Error formatting results: {str(e)}")
+                    summary_df = pd.DataFrame()  # return empty dataframe as fallback
+
                 csv = prepare_export_csv(greeks_df, summary_df, trading_advice)
                 st.session_state.export_csv = csv
 
