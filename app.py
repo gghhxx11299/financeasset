@@ -228,21 +228,21 @@ def plot_vix_chart():
     """Plot simple VIX line chart with proper data handling"""
     try:
         # Get VIX data
-        vix_df = yf.download("^VIX", period="1y", progress=False)
+        vix_data = yf.download("^VIX", period="1y", progress=False)['Close']
         
-        if vix_df.empty:
+        if vix_data.empty:
             st.warning("No VIX data available")
             return None
 
-        # Ensure we have numeric data
-        vix_data = pd.to_numeric(vix_df['Close'], errors='coerce').dropna()
+        # Convert to proper numeric format
+        vix_series = pd.to_numeric(vix_data, errors='coerce').dropna()
         
-        # Create basic line chart
+        # Create basic line chart - ensure we pass arrays, not Series
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
-            x=vix_data.index,
-            y=vix_data,
+            x=vix_series.index.to_numpy(),  # Convert index to numpy array
+            y=vix_series.to_numpy(),        # Convert values to numpy array
             mode='lines',
             name="VIX",
             line=dict(color='#1f77b4', width=2),
@@ -250,7 +250,7 @@ def plot_vix_chart():
         ))
         
         # Add horizontal line at current VIX level
-        current_vix = float(vix_data.iloc[-1])
+        current_vix = float(vix_series.iloc[-1])
         fig.add_hline(
             y=current_vix,
             line=dict(color='#ff7f0e', width=1.5, dash='dot'),
@@ -268,19 +268,7 @@ def plot_vix_chart():
             template="plotly_white",
             height=450,
             margin=dict(l=50, r=50, b=50, t=60),
-            showlegend=False,
-            xaxis=dict(
-                rangeselector=dict(
-                    buttons=list([
-                        dict(count=1, label="1m", step="month", stepmode="backward"),
-                        dict(count=3, label="3m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"),
-                        dict(step="all")
-                    ])
-                ),
-                rangeslider=dict(visible=True),
-                type="date"
-            )
+            showlegend=False
         )
         
         return fig
@@ -429,6 +417,44 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
         except Exception as e:
             st.error(f"PDF generation error: {str(e)}")
             return None
+
+def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital):
+    """Generate personalized trading advice based on analysis"""
+    advice = []
+    reasons = []
+    
+    high_iv_divergence = any(d > 0.1 for d in iv_divergences.values())
+    if high_iv_divergence:
+        max_divergence = max(iv_divergences.values())
+        advice.append("Reduce position size")
+        reasons.append(f"High IV divergence ({max_divergence:.2f} > 0.1) suggests overpriced options")
+    
+    extreme_z = abs(latest_z) > 2
+    if extreme_z:
+        advice.append("Exercise caution")
+        reasons.append(f"Extreme price movement (Z-score: {latest_z:.2f}) indicates potential mean reversion")
+    
+    low_correlation = correlation < 0.5
+    if low_correlation:
+        advice.append("Consider hedging")
+        reasons.append(f"Low sector correlation ({correlation:.2f}) reduces hedging effectiveness")
+    
+    capital_ratio = capital / comfortable_capital
+    if capital_ratio < 0.7:
+        advice.append("Reduce trade size significantly")
+        reasons.append(f"Suggested capital ${capital:.0f} is {capital_ratio*100:.0f}% of comfortable amount")
+    elif capital_ratio < 0.9:
+        advice.append("Reduce trade size moderately")
+        reasons.append(f"Suggested capital ${capital:.0f} is {capital_ratio*100:.0f}% of comfortable amount")
+    
+    if not advice:
+        advice.append("Normal trading conditions")
+        reasons.append("All metrics within normal ranges - standard position sizing appropriate")
+    
+    return pd.DataFrame({
+        "Advice": advice,
+        "Reason": reasons
+    })
 
 # --- Streamlit UI ---
 def main():
