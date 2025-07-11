@@ -135,7 +135,7 @@ def monte_carlo_price(S, K, T, r, sigma, option_type="call", simulations=10000):
     else:
         payoffs = np.maximum(K - ST, 0)
     price = np.exp(-r * T) * np.mean(payoffs)
-    return price
+    return float(price)  # Convert to float to avoid numpy types
 
 # --- Greeks Calculations ---
 def black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
@@ -147,16 +147,20 @@ def black_scholes_greeks(S, K, T, r, sigma, option_type="call"):
     delta = norm.cdf(d1) if option_type == "call" else -norm.cdf(-d1)
     gamma = norm.pdf(d1) / (S * sigma * math.sqrt(T))
     vega = S * norm.pdf(d1) * math.sqrt(T) / 100
-    theta_call = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
-                - r * K * math.exp(-r * T) * norm.cdf(d2)) / 365
-    theta_put = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T))
-                + r * K * math.exp(-r * T) * norm.cdf(-d2)) / 365
+    theta_call = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T)) - r * K * math.exp(-r * T) * norm.cdf(d2)) / 365
+    theta_put = (-S * norm.pdf(d1) * sigma / (2 * math.sqrt(T)) + r * K * math.exp(-r * T) * norm.cdf(-d2)) / 365
     theta = theta_call if option_type == "call" else theta_put
     rho_call = K * T * math.exp(-r * T) * norm.cdf(d2) / 100
     rho_put = -K * T * math.exp(-r * T) * norm.cdf(-d2) / 100
     rho = rho_call if option_type == "call" else rho_put
 
-    return dict(Delta=delta, Gamma=gamma, Vega=vega, Theta=theta, Rho=rho)
+    return dict(
+        Delta=float(delta),
+        Gamma=float(gamma),
+        Vega=float(vega),
+        Theta=float(theta),
+        Rho=float(rho)
+    )
 
 # --- Implied Volatility ---
 def implied_volatility(option_market_price, S, K, T, r, option_type="call", tol=1e-5, max_iter=100):
@@ -183,7 +187,7 @@ def get_option_market_price(ticker, option_type, strike, expiry_date):
         opt_chain = stock.option_chain(expiry_date)
         options = opt_chain.calls if option_type == "call" else opt_chain.puts
         row = options[options['strike'] == strike]
-        return None if row.empty else row.iloc[0]['lastPrice']
+        return None if row.empty else float(row.iloc[0]['lastPrice'])
     except:
         return None
 
@@ -204,9 +208,7 @@ def get_us_10yr_treasury_yield():
             return fallback_yield
 
         latest_yield_str = df["10 Yr"].iloc[-1]
-        latest_yield = float(latest_yield_str) / 100  # convert from percent to decimal
-
-        return latest_yield
+        return float(latest_yield_str) / 100  # convert from percent to decimal
     except Exception:
         return fallback_yield
 
@@ -218,8 +220,7 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         daily_returns = hist.pct_change().dropna()
         realized_vol = daily_returns.std() * np.sqrt(252)  # Annualized
         
-        percentile = percentileofscore([realized_vol], current_iv)
-        return percentile
+        return float(percentileofscore([realized_vol], current_iv))
     except Exception as e:
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
@@ -560,7 +561,7 @@ def main():
                     st.session_state.calculation_done = False
                     return
                 
-                S = stock_data["Close"].iloc[-1]
+                S = float(stock_data["Close"].iloc[-1])
 
                 # Find closest expiry date
                 options_expiries = yf.Ticker(ticker).options
@@ -630,10 +631,10 @@ def main():
                 # Z-score calculation
                 window = 20
                 zscore = ((df[ticker] - df[ticker].rolling(window).mean()) / df[ticker].rolling(window).std()).dropna()
-                latest_z = zscore.iloc[-1] if not zscore.empty else 0
+                latest_z = float(zscore.iloc[-1]) if not zscore.empty else 0
 
                 # Correlation analysis
-                correlation = returns.corr().loc[ticker].drop(ticker).mean()
+                correlation = float(returns.corr().loc[ticker].drop(ticker).mean())
                 iv_divergences = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
 
                 # Capital adjustment logic
@@ -674,9 +675,9 @@ def main():
                 summary_df = pd.DataFrame({
                     "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time"],
                     "Value": [
-                        f"${float(price_market):.2f}",
+                        f"${price_market:.2f}",
                         f"${float(price):.2f}",
-                        f"{float(iv)*100:.2f}%",
+                        f"{iv*100:.2f}%",
                         f"${float(capital):.2f}",
                         f"{float(calc_time):.4f} seconds"
                     ]
@@ -708,8 +709,8 @@ def main():
                     for cap in capitals:
                         contracts = int(cap / (price * 100)) if price > 0 else 0
                         profits_samples = contracts * 100 * (price_samples * 1.05 - price_samples)
-                        mean_profit = profits_samples.mean()
-                        std_profit = profits_samples.std()
+                        mean_profit = float(profits_samples.mean())
+                        std_profit = float(profits_samples.std())
                         ci_lower = mean_profit - 1.96 * std_profit / np.sqrt(simulations)
                         ci_upper = mean_profit + 1.96 * std_profit / np.sqrt(simulations)
                         profits.append(mean_profit)
@@ -719,7 +720,7 @@ def main():
                     for cap in capitals:
                         contracts = int(cap / (price * 100)) if price > 0 else 0
                         profit = contracts * 100 * (price * 1.05 - price)
-                        profits.append(profit)
+                        profits.append(float(profit))
 
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
