@@ -3,16 +3,13 @@ from datetime import datetime
 import yfinance as yf
 import pandas as pd
 import math
-import matplotlib.pyplot as plt
-from scipy.stats import norm
 import numpy as np
+from scipy.stats import norm
+import plotly.graph_objs as go
+import time
 import requests
 from bs4 import BeautifulSoup
-import time
 import io
-import base64
-import plotly.graph_objs as go
-import plotly.io as pio 
 
 # --- Sector ETFs ---
 SECTOR_MAP = {
@@ -37,7 +34,7 @@ SECTOR_MAP = {
     "transportation": ["IYT", "XTN"],
 }
 
-# Pricing Models
+# Pricing and Greeks functions (same as your original code)...
 def black_scholes_price(S, K, T, r, sigma, option_type="call"):
     if T <= 0:
         return max(0.0, S - K) if option_type == "call" else max(0.0, K - S)
@@ -141,9 +138,10 @@ def get_us_10yr_treasury_yield():
         st.warning(f"Error fetching Treasury yield: {e}")
         return 0.025  # fallback 2.5%
 
+# --- Streamlit UI ---
 st.title("Options Profit & Capital Advisor")
 
-# Inputs
+# Input widgets
 ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
 option_type = st.selectbox("Option Type", ["call", "put"])
 strike_price = st.number_input("Desired Strike Price", min_value=0.0, value=150.0)
@@ -156,17 +154,27 @@ max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
 min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
 pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
 
-# Buttons in columns: Calculate and export buttons next to each other
+# Layout buttons in columns on top
 calc_col, export_csv_col, export_png_col = st.columns([2, 1, 1])
 
 with calc_col:
     calculate_clicked = st.button("Calculate Profit & Advice")
 
-# Initialize variables to None to avoid referencing before assignment
-price_market = price = iv = capital = calc_time = None
-greeks_df = None
-fig = None
+# Initialize session state variables for storing results
+if "calculation_done" not in st.session_state:
+    st.session_state.calculation_done = False
+if "export_csv" not in st.session_state:
+    st.session_state.export_csv = None
+if "export_png" not in st.session_state:
+    st.session_state.export_png = None
+if "greeks_df" not in st.session_state:
+    st.session_state.greeks_df = None
+if "summary_info" not in st.session_state:
+    st.session_state.summary_info = None
+if "plot_fig" not in st.session_state:
+    st.session_state.plot_fig = None
 
+# When Calculate button is pressed, run calculations and save results in session_state
 if calculate_clicked:
     try:
         T = days_to_expiry / 365
@@ -183,16 +191,19 @@ if calculate_clicked:
 
         if expiry_date is None:
             st.error("No matching expiry date found near the specified days to expiry.")
+            st.session_state.calculation_done = False
             st.stop()
 
         price_market = get_option_market_price(ticker, option_type, strike_price, expiry_date)
         if price_market is None:
             st.error("Failed to fetch option market price. Try a closer-to-the-money strike.")
+            st.session_state.calculation_done = False
             st.stop()
 
         iv = implied_volatility(price_market, S, strike_price, T, risk_free_rate, option_type)
         if iv is None:
             st.error("Could not compute implied volatility. Try a closer-to-the-money strike.")
+            st.session_state.calculation_done = False
             st.stop()
 
         greeks = black_scholes_greeks(S, strike_price, T, risk_free_rate, iv, option_type)
@@ -201,13 +212,6 @@ if calculate_clicked:
             "Value": [greeks["Delta"], greeks["Gamma"], greeks["Vega"], greeks["Theta"], greeks["Rho"]]
         })
         greeks_df["Value"] = greeks_df["Value"].map(lambda x: f"{x:.4f}")
-
-        # Display chosen pricing model
-        st.markdown(f"## Pricing Model Selected: **{pricing_model}**")
-
-        # Greeks table
-        st.write("### Greeks")
-        st.table(greeks_df)
 
         start = time.time()
         if pricing_model == "Black-Scholes":
@@ -219,7 +223,6 @@ if calculate_clicked:
         else:
             price = black_scholes_price(S, strike_price, T, risk_free_rate, iv, option_type)
         end = time.time()
-
         calc_time = end - start
 
         etfs = SECTOR_MAP.get(sector, [])
@@ -251,38 +254,16 @@ if calculate_clicked:
 
         capital = max(min_capital, min(max_capital, capital))
 
-        # Pricing summary output with better formatting
-        st.markdown(
-            f"""
-            ### Pricing Summary
+        # Prepare summary DataFrame for export
+        summary_df = pd.DataFrame({
+            "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time (seconds)"],
+            "Value": [f"{price_market:.2f}", f"{price:.2f}", f"{iv*100:.2f}%", f"{capital:.2f}", f"{calc_time:.4f}"]
+        })
 
-            - **Market Price:** `${price_market:.2f}`
-            - **Model Price ({pricing_model}):** `${price:.2f}`
-            - **Implied Volatility (IV):** `{iv*100:.2f}%`
-            - **Suggested Capital:** `${capital:.2f}`
-            - ⏱️ **Calculation Time:** `{calc_time:.4f} seconds`
-            """
-        )
+        export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
+        csv = export_df.to_csv(index=False).encode('utf-8')
 
-        # Advice section
-        st.write("### Advice")
-        if explanation:
-            for line in explanation:
-                st.write(f"- {line}")
-        else:
-            st.write("- No significant adjustments. Capital allocation looks good.")
-
-        # Reason section explaining suggested capital adjustments
-        st.write("### Reason for Suggested Capital")
-        if explanation:
-            reasons = "\n".join(explanation)
-            st.markdown(f"""
-            The suggested capital is adjusted due to the following factors observed in the market data and analysis:
-            {reasons}
-            """)
-        else:
-            st.markdown("The suggested capital is based on your comfortable capital without any adjustments because market indicators show stable conditions.")
-
+        # Calculate profit vs capital plot
         capitals = list(range(int(min_capital), int(max_capital) + 1, 100))
         profits = []
         profits_ci_lower = []
@@ -350,31 +331,68 @@ if calculate_clicked:
             yaxis=dict(showgrid=True, gridcolor='LightGray'),
         )
 
+        # Save data to session_state for export buttons & output
+        st.session_state.calculation_done = True
+        st.session_state.export_csv = csv
+        st.session_state.export_png = fig.to_image(format="png")
+        st.session_state.greeks_df = greeks_df
+        st.session_state.summary_info = summary_df
+        st.session_state.plot_fig = fig
+
+        # Show output after calculation
+        st.markdown(f"## Pricing Model Selected: **{pricing_model}**")
+        st.write("### Greeks")
+        st.table(greeks_df)
+        st.markdown(
+            f"""
+            ### Pricing Summary
+
+            - **Market Price:** `${price_market:.2f}`
+            - **Model Price ({pricing_model}):** `${price:.2f}`
+            - **Implied Volatility (IV):** `{iv*100:.2f}%`
+            - **Suggested Capital:** `${capital:.2f}`
+            - ⏱️ **Calculation Time:** `{calc_time:.4f} seconds`
+            """
+        )
+        st.write("### Advice")
+        if explanation:
+            for line in explanation:
+                st.write(f"- {line}")
+        else:
+            st.write("- No significant adjustments. Capital allocation looks good.")
+
+        st.write("### Reason for Suggested Capital")
+        if explanation:
+            reasons = "\n".join(explanation)
+            st.markdown(f"""
+            The suggested capital is adjusted due to the following factors observed in the market data and analysis:
+            {reasons}
+            """)
+        else:
+            st.markdown("The suggested capital is based on your comfortable capital without any adjustments because market indicators show stable conditions.")
+
         st.plotly_chart(fig, use_container_width=True)
-
-        # Export buttons in columns next to Calculate button
-        summary_df = pd.DataFrame({
-            "Metric": ["Market Price", f"Model Price ({pricing_model})", "Implied Volatility (IV)", "Suggested Capital", "Calculation Time (seconds)"],
-            "Value": [f"{price_market:.2f}", f"{price:.2f}", f"{iv*100:.2f}%", f"{capital:.2f}", f"{calc_time:.4f}"]
-        })
-        export_df = pd.concat([greeks_df.rename(columns={"Greek": "Metric"}), summary_df], ignore_index=True)
-        csv = export_df.to_csv(index=False).encode('utf-8')
-        png_bytes = fig.to_image(format="png")
-
-        with export_csv_col:
-            st.download_button(
-                label="Download Greeks & Summary CSV",
-                data=csv,
-                file_name=f"{ticker}_option_analysis.csv",
-                mime="text/csv"
-            )
-        with export_png_col:
-            st.download_button(
-                label="Download Profit vs Capital Plot (PNG)",
-                data=png_bytes,
-                file_name=f"{ticker}_profit_vs_capital.png",
-                mime="image/png"
-            )
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
+        st.session_state.calculation_done = False
+
+# Export buttons - enabled only after calculation
+with export_csv_col:
+    st.download_button(
+        label="Download Greeks & Summary CSV",
+        data=st.session_state.export_csv if st.session_state.calculation_done else None,
+        file_name=f"{ticker}_option_analysis.csv",
+        mime="text/csv",
+        disabled=not st.session_state.calculation_done
+    )
+
+with export_png_col:
+    st.download_button(
+        label="Download Profit vs Capital Plot (PNG)",
+        data=st.session_state.export_png if st.session_state.calculation_done else None,
+        file_name=f"{ticker}_profit_vs_capital.png",
+        mime="image/png",
+        disabled=not st.session_state.calculation_done
+    )
+
