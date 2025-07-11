@@ -224,59 +224,52 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     except Exception as e:
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
-def plot_vix_chart():
-    """Plot clean VIX line chart with proper data handling"""
+def plot_stock_volume(ticker, days_to_expiry):
+    """Plot stock trading volume for the option's time frame"""
     try:
-        # Get VIX data
-        vix_data = yf.download("^VIX", period="3mo", interval="1d", progress=False)
+        # Get stock data for the option's time period
+        stock_data = yf.download(ticker, period=f"{days_to_expiry}d", progress=False)
         
-        if vix_data.empty:
-            st.warning("No VIX data available from Yahoo Finance")
+        if stock_data.empty:
+            st.warning(f"No volume data available for {ticker}")
             return None
 
-        # Extract the Close prices as a Series (1D)
-        vix_close = vix_data['Close'].dropna()
+        # Extract volume data
+        volume = stock_data['Volume']
         
-        if vix_close.empty:
-            st.warning("No valid VIX data available after cleaning")
+        if volume.empty:
+            st.warning(f"No trading volume data available for {ticker}")
             return None
 
-        # Convert to proper format
-        dates = vix_close.index.to_numpy()  # Convert index to numpy array
-        values = vix_close.to_numpy()       # Convert values to numpy array
-
-        # Create the plot
+        # Create volume bar chart
         fig = go.Figure()
         
-        fig.add_trace(go.Scatter(
-            x=dates,
-            y=values,
-            mode='lines',
-            line=dict(color='#1f77b4', width=2),
-            name='VIX',
-            hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}<extra></extra>"
+        fig.add_trace(go.Bar(
+            x=volume.index,
+            y=volume,
+            name='Volume',
+            marker_color='#1f77b4',
+            hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>Volume</b>: %{y:,}<extra></extra>"
         ))
         
-        # Add current level marker
-        if len(values) > 0:
-            current_vix = float(values[-1])  # Convert to Python float
-            fig.add_hline(
-                y=current_vix,
-                line=dict(color='#ff7f0e', width=1.5, dash='dot'),
-                annotation_text=f"Current: {current_vix:.2f}",
-                annotation_position="bottom right"
-            )
+        # Add average volume line
+        avg_volume = volume.mean()
+        fig.add_hline(
+            y=avg_volume,
+            line=dict(color='#ff7f0e', width=1.5, dash='dot'),
+            annotation_text=f"Avg: {avg_volume:,.0f}",
+            annotation_position="bottom right"
+        )
         
         # Format the layout
         fig.update_layout(
-            title="<b>CBOE Volatility Index (VIX)</b> - Last 3 Months",
+            title=f"<b>{ticker} Trading Volume</b> - Last {days_to_expiry} Days",
             xaxis_title="Date",
-            yaxis_title="VIX Value",
+            yaxis_title="Volume (Shares)",
             xaxis=dict(
                 type='date',
                 tickformat='%b %d',
-                showgrid=True,
-                rangeslider=dict(visible=True)
+                showgrid=True
             ),
             yaxis=dict(
                 showgrid=True,
@@ -292,7 +285,7 @@ def plot_vix_chart():
         return fig
         
     except Exception as e:
-        st.error(f"Error generating VIX chart: {str(e)}")
+        st.error(f"Error generating volume chart: {str(e)}")
         return None
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
