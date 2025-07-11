@@ -225,90 +225,95 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 def plot_stock_volume(ticker, days_to_expiry):
-    """Plot stock trading volume for the option's time frame"""
+    """Plot stock trading volume - handles all edge cases"""
     try:
-        # First try with auto-adjust=True (default)
-        stock_data = yf.download(
-            ticker, 
-            period=f"{days_to_expiry}d",
-            progress=False,
-            auto_adjust=True
-        )
+        # 1. Fetch data with multiple fallback attempts
+        stock_data = None
+        fetch_attempts = [
+            {'auto_adjust': True, 'actions': False},
+            {'auto_adjust': False, 'actions': False},
+            {'auto_adjust': True, 'actions': True},
+            {'auto_adjust': False, 'actions': True}
+        ]
         
-        # If no volume, try with auto_adjust=False
-        if 'Volume' not in stock_data.columns:
-            stock_data = yf.download(
-                ticker,
-                period=f"{days_to_expiry}d",
-                progress=False,
-                auto_adjust=False
-            )
-        
-        # Verify we have a DataFrame with Volume data
+        for attempt in fetch_attempts:
+            try:
+                stock_data = yf.download(
+                    ticker,
+                    period=f"{min(days_to_expiry, 365)}d",  # Cap at 1 year
+                    progress=False,
+                    **attempt
+                )
+                if isinstance(stock_data, pd.DataFrame) and not stock_data.empty:
+                    break
+            except:
+                continue
+
+        # 2. Validate data structure
         if not isinstance(stock_data, pd.DataFrame) or stock_data.empty:
-            st.warning(f"No data available for {ticker}")
+            st.warning(f"⚠️ No market data available for {ticker}")
             return None
+
+        # 3. Find volume column (handles different naming conventions)
+        volume_col = None
+        possible_volume_cols = ['Volume', 'volume', 'VOLUME', 'Vol', 'vol']
+        for col in stock_data.columns:
+            if str(col) in possible_volume_cols:
+                volume_col = col
+                break
+
+        if not volume_col:
+            st.warning(f"📊 Volume data missing for {ticker} (Available columns: {list(stock_data.columns)})")
+            return None
+
+        # 4. Clean data
+        clean_data = stock_data[[volume_col]].dropna()
+        if clean_data.empty:
+            st.warning(f"🧹 No valid volume data after cleaning for {ticker}")
+            return None
+
+        # 5. Format numbers safely
+        try:
+            avg_volume = clean_data[volume_col].mean()
+            avg_text = f"Avg: {avg_volume:,.0f}" if not pd.isna(avg_volume) else "Avg: N/A"
+        except:
+            avg_text = "Avg: N/A"
+
+        # 6. Create plot with error handling
+        try:
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=clean_data.index,
+                y=clean_data[volume_col],
+                marker_color='#1f77b4',
+                hovertemplate="<b>Date</b>: %{x|%b %d}<br><b>Volume</b>: %{y:,}<extra></extra>"
+            ))
             
-        if 'Volume' not in stock_data.columns:
-            st.warning(f"Volume data not found for {ticker} (columns: {list(stock_data.columns)})")
+            fig.add_shape(
+                type="line",
+                x0=clean_data.index[0],
+                x1=clean_data.index[-1],
+                y0=avg_volume,
+                y1=avg_volume,
+                line=dict(color='#ff7f0e', dash='dot')
+            )
+            
+            fig.update_layout(
+                title=f"<b>{ticker} Volume</b> | Last {len(clean_data)} Trading Days",
+                yaxis_title="Shares Traded",
+                template="plotly_white",
+                hovermode="x unified"
+            )
+            
+            return fig
+            
+        except Exception as plot_error:
+            st.error(f"📉 Chart rendering failed: {str(plot_error)}")
             return None
-
-        # Clean and prepare data
-        volume_data = stock_data[['Volume']].dropna()
-        if volume_data.empty:
-            st.warning(f"No valid volume data after cleaning for {ticker}")
-            return None
-
-        # Create plot
-        fig = go.Figure()
-        
-        # Volume bars
-        fig.add_trace(go.Bar(
-            x=volume_data.index,
-            y=volume_data['Volume'],
-            name='Volume',
-            marker_color='#1f77b4',
-            hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>Volume</b>: %{y:,.0f}<extra></extra>"
-        ))
-
-        # Average line
-        avg_volume = volume_data['Volume'].mean()
-        fig.add_shape(
-            type="line",
-            x0=volume_data.index[0],
-            x1=volume_data.index[-1],
-            y0=avg_volume,
-            y1=avg_volume,
-            line=dict(color='#ff7f0e', width=1.5, dash='dot')
-        )
-
-        # Annotation
-        fig.add_annotation(
-            x=volume_data.index[-1],
-            y=avg_volume,
-            text=f"Avg: {avg_volume:,.0f}",
-            showarrow=False,
-            xanchor='right',
-            yanchor='bottom',
-            font=dict(color="#ff7f0e")
-        )
-
-        # Layout
-        fig.update_layout(
-            title=f"<b>{ticker.upper()} Trading Volume</b> - Last {days_to_expiry} Days",
-            xaxis_title="Date",
-            yaxis_title="Volume (Shares)",
-            hovermode="x unified",
-            template="plotly_white",
-            height=500
-        )
-
-        return fig
 
     except Exception as e:
-        st.error(f"Error generating volume chart for {ticker}: {str(e)}")
+        st.error(f"❌ Critical error processing {ticker}: {str(e)}")
         return None
-
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
     fig = make_subplots(rows=3, cols=1, 
