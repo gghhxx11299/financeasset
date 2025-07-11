@@ -121,7 +121,7 @@ def get_option_market_price(ticker, option_type, strike, expiry_date):
 def get_us_10yr_treasury_yield():
     try:
         url = "https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=yield"
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=20)
         soup = BeautifulSoup(response.text, 'html.parser')
 
         table = soup.find('table', {'class': 't-chart'})
