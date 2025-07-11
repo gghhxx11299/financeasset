@@ -225,45 +225,54 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 def plot_vix_chart():
-    """Plot simple VIX line chart with proper data handling"""
+    """Plot clean VIX line chart with proper date formatting"""
     try:
-        # Get VIX data
-        vix_data = yf.download("^VIX", period="1y", progress=False)
+        # Get VIX data - ensure we get at least 30 days of data
+        vix_data = yf.download("^VIX", period="3mo", progress=False)
         
         if vix_data.empty:
             st.warning("No VIX data available")
             return None
 
-        # Reset index to make Date a column
-        vix_df = vix_data.reset_index()
+        # Clean the data - ensure proper datetime format
+        vix_df = vix_data[['Close']].copy()
+        vix_df = vix_df.reset_index()
+        vix_df['Date'] = pd.to_datetime(vix_df['Date']).dt.date  # Convert to date only
         
-        # Create basic line chart
+        # Create line chart with proper formatting
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
             x=vix_df['Date'],
             y=vix_df['Close'],
             mode='lines',
-            name="VIX",
             line=dict(color='#1f77b4', width=2),
+            name='VIX',
             hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}<extra></extra>"
         ))
         
-        # Add horizontal line at current VIX level
+        # Add current level marker
         current_vix = float(vix_df['Close'].iloc[-1])
         fig.add_hline(
             y=current_vix,
             line=dict(color='#ff7f0e', width=1.5, dash='dot'),
             annotation_text=f"Current: {current_vix:.2f}",
-            annotation_position="bottom right",
-            annotation_font=dict(size=10)
+            annotation_position="bottom right"
         )
         
-        # Layout configuration
+        # Clean layout
         fig.update_layout(
-            title="<b>CBOE Volatility Index (VIX)</b>",
-            yaxis_title="VIX Value",
+            title="<b>CBOE Volatility Index (VIX)</b> - Last 3 Months",
             xaxis_title="Date",
+            yaxis_title="VIX Value",
+            xaxis=dict(
+                type='date',
+                tickformat='%b %d',
+                showgrid=True
+            ),
+            yaxis=dict(
+                showgrid=True
+            ),
             hovermode="x unified",
             template="plotly_white",
             height=450,
