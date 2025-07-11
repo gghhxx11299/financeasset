@@ -1,7 +1,10 @@
+import os
+from fpdf import FPDF
+import matplotlib.pyplot as plt
+import pandas as pd
 import streamlit as st
 from datetime import datetime
 import yfinance as yf
-import pandas as pd
 import math
 import numpy as np
 from scipy.stats import norm
@@ -34,6 +37,50 @@ def prepare_export_png(fig):
     else:
         st.warning("Kaleido package not installed. PNG export not available.")
         return None
+
+
+def generate_pdf_report(input_data, greeks_df, summary_df, plot_path=None):
+    """Generate PDF report using FPDF"""
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    # Title
+    pdf.set_font("Arial", 'B', size=14)
+    pdf.cell(200, 10, "Options Analysis Report", ln=True, align='C')
+    pdf.ln(10)
+    
+    # Inputs section
+    pdf.set_font("Arial", 'B', size=12)
+    pdf.cell(200, 10, "Input Parameters", ln=True)
+    pdf.set_font("Arial", size=12)
+    for key, value in input_data.items():
+        pdf.cell(200, 10, f"{key}: {value}", ln=True)
+
+    # Greeks section
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', size=12)
+    pdf.cell(200, 10, "Greeks", ln=True)
+    pdf.set_font("Arial", size=12)
+    for _, row in greeks_df.iterrows():
+        pdf.cell(200, 10, f"{row['Greek']}: {row['Value']}", ln=True)
+
+    # Summary section
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', size=12)
+    pdf.cell(200, 10, "Summary", ln=True)
+    pdf.set_font("Arial", size=12)
+    for _, row in summary_df.iterrows():
+        pdf.cell(200, 10, f"{row['Metric']}: {row['Value']}", ln=True)
+
+    # Plot section if available
+    if plot_path and os.path.exists(plot_path):
+        pdf.ln(10)
+        pdf.set_font("Arial", 'B', size=12)
+        pdf.cell(200, 10, "Profit vs Capital Plot", ln=True)
+        pdf.image(plot_path, x=10, w=180)
+
+    return pdf
 
 
 # --- Sector ETFs ---
@@ -192,7 +239,7 @@ min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
 pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
 
 # --- Buttons ---
-calc_col, export_csv_col, export_png_col = st.columns([2, 1, 1])
+calc_col, export_csv_col, export_png_col, export_pdf_col = st.columns([2, 1, 1, 1])
 
 with calc_col:
     calculate_clicked = st.button("Calculate Profit & Advice")
@@ -204,16 +251,37 @@ if "export_csv" not in st.session_state:
     st.session_state.export_csv = None
 if "export_png" not in st.session_state:
     st.session_state.export_png = None
+if "export_pdf" not in st.session_state:
+    st.session_state.export_pdf = None
 if "greeks_df" not in st.session_state:
     st.session_state.greeks_df = None
 if "summary_info" not in st.session_state:
     st.session_state.summary_info = None
 if "plot_fig" not in st.session_state:
     st.session_state.plot_fig = None
+if "plot_path" not in st.session_state:
+    st.session_state.plot_path = None
+if "input_data" not in st.session_state:
+    st.session_state.input_data = None
 
 # When Calculate button is pressed, run calculations and save results in session_state
 if calculate_clicked:
     try:
+        # Store input data for PDF report
+        st.session_state.input_data = {
+            "Stock Ticker": ticker,
+            "Option Type": option_type,
+            "Strike Price": strike_price,
+            "Days to Expiry": days_to_expiry,
+            "Risk-Free Rate": risk_free_rate,
+            "Sector": sector,
+            "Return Type": return_type,
+            "Comfortable Capital": comfortable_capital,
+            "Max Capital": max_capital,
+            "Min Capital": min_capital,
+            "Pricing Model": pricing_model
+        }
+
         # Fetch live treasury yield on calculation click
         live_rate = get_us_10yr_treasury_yield()
         if live_rate is not None:
@@ -375,11 +443,29 @@ if calculate_clicked:
             template="plotly_white"
         )
 
+        # Create matplotlib plot for PDF
+        plt.figure(figsize=(8, 5))
+        plt.plot(capitals, profits, marker='o')
+        plt.title('Profit vs Capital')
+        plt.xlabel('Capital ($)')
+        plt.ylabel('Profit ($)')
+        plt.grid(True)
+        plot_path = "profit_vs_capital.png"
+        plt.savefig(plot_path)
+        plt.close()
+
+        # Generate PDF report
+        pdf = generate_pdf_report(st.session_state.input_data, greeks_df, summary_df, plot_path)
+        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        
+        # Store everything in session state
         st.session_state.greeks_df = greeks_df
         st.session_state.summary_info = summary_df
         st.session_state.export_csv = csv
         st.session_state.plot_fig = fig
         st.session_state.export_png = prepare_export_png(fig)
+        st.session_state.export_pdf = pdf_bytes
+        st.session_state.plot_path = plot_path
         st.session_state.calculation_done = True
         st.success("Calculation done!")
 
@@ -418,9 +504,24 @@ if st.session_state.calculation_done:
             )
         else:
             st.info("PNG export not available (Kaleido not installed or error).")
+    
+    with export_pdf_col:
+        if st.session_state.export_pdf:
+            st.download_button(
+                label="Download Report (PDF)",
+                data=st.session_state.export_pdf,
+                file_name=f"{ticker}_option_report.pdf",
+                mime="application/pdf",
+                disabled=not st.session_state.calculation_done
+            )
 
 else:
     st.info("Click 'Calculate Profit & Advice' to generate data and export options.")
 
-
+# Clean up plot file if it exists
+if st.session_state.get("plot_path") and os.path.exists(st.session_state.plot_path):
+    try:
+        os.remove(st.session_state.plot_path)
+    except:
+        pass
 
