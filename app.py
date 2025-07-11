@@ -225,97 +225,74 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 def plot_vix_chart():
-    """Plot clean VIX line chart with SPY overlay comparison"""
+    """Plot clean VIX line chart with proper data conversion"""
     try:
-        # Get VIX and SPY data
+        # Get VIX data
         vix_data = yf.download("^VIX", period="3mo", interval="1d", progress=False)
-        spy_data = yf.download("SPY", period="3mo", interval="1d", progress=False)
         
-        if vix_data.empty or spy_data.empty:
-            st.warning("Market data unavailable - please try again later")
+        if vix_data.empty:
+            st.warning("No VIX data available from Yahoo Finance")
             return None
 
-        # Clean and prepare the data
-        vix_clean = vix_data[['Close']].dropna()
-        spy_clean = spy_data[['Close']].dropna()
+        # Clean and prepare the data - ensure we're working with Series
+        vix_series = vix_data['Close'].dropna()  # This is now a Series
         
+        if vix_series.empty:
+            st.warning("No valid VIX data available after cleaning")
+            return None
+
         # Convert to proper format
-        dates = vix_clean.index.to_pydatetime()
-        vix_values = vix_clean['Close'].tolist()
-        spy_values = spy_clean['Close'].reindex(vix_clean.index, method='ffill').tolist()
+        dates = vix_series.index.to_pydatetime()  # Convert index to datetime objects
+        values = vix_series.tolist()             # Properly convert Series to list
+
+        # Create the plot
+        fig = go.Figure()
         
-        # Normalize SPY values for comparison (0-100 scale)
-        spy_normalized = 100 * (pd.Series(spy_values) / spy_values[0])
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=values,
+            mode='lines',
+            line=dict(color='#1f77b4', width=2),
+            name='VIX',
+            hovertemplate="<b>Date</b>: %{x|%b %d, %Y}<br><b>VIX</b>: %{y:.2f}<extra></extra>"
+        ))
         
-        # Create the plot with dual y-axes
-        fig = make_subplots(specs=[[{"secondary_y": True}]])
-        
-        # Add VIX trace (left axis)
-        fig.add_trace(
-            go.Scatter(
-                x=dates,
-                y=vix_values,
-                name="VIX",
-                line=dict(color='#1f77b4', width=2),
-                hovertemplate="<b>Date</b>: %{x|%b %d}<br><b>VIX</b>: %{y:.2f}<extra></extra>"
-            ),
-            secondary_y=False
-        )
-        
-        # Add SPY trace (right axis)
-        fig.add_trace(
-            go.Scatter(
-                x=dates,
-                y=spy_normalized,
-                name="SPY (Normalized)",
-                line=dict(color='#2ca02c', width=1.5, dash='dot'),
-                hovertemplate="<b>Date</b>: %{x|%b %d}<br><b>SPY</b>: %{y:.1f}%<extra></extra>"
-            ),
-            secondary_y=True
-        )
-        
-        # Add current level markers
-        if len(vix_values) > 0:
-            current_vix = vix_values[-1]
+        # Add current level marker
+        if len(values) > 0:
+            current_vix = values[-1]
             fig.add_hline(
                 y=current_vix,
-                line=dict(color='#1f77b4', width=1, dash='dot'),
-                annotation_text=f"VIX: {current_vix:.2f}",
-                annotation_position="bottom right",
-                secondary_y=False
+                line=dict(color='#ff7f0e', width=1.5, dash='dot'),
+                annotation_text=f"Current: {current_vix:.2f}",
+                annotation_position="bottom right"
             )
         
         # Format the layout
         fig.update_layout(
-            title="<b>VIX vs SPY</b> - Last 3 Months",
+            title="<b>CBOE Volatility Index (VIX)</b> - Last 3 Months",
             xaxis_title="Date",
+            yaxis_title="VIX Value",
+            xaxis=dict(
+                type='date',
+                tickformat='%b %d',
+                showgrid=True,
+                rangeslider=dict(visible=True)
+            ),
+            yaxis=dict(
+                showgrid=True,
+                fixedrange=False
+            ),
             hovermode="x unified",
             template="plotly_white",
             height=500,
             margin=dict(l=50, r=50, b=50, t=80),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02)
-        )
-        
-        # Left Y-axis (VIX)
-        fig.update_yaxes(
-            title_text="VIX Value",
-            secondary_y=False,
-            showgrid=True,
-            gridcolor='#f0f0f0'
-        )
-        
-        # Right Y-axis (SPY)
-        fig.update_yaxes(
-            title_text="SPY (Normalized %)",
-            secondary_y=True,
-            showgrid=False,
-            rangemode="tozero"
+            showlegend=False
         )
         
         return fig
         
     except Exception as e:
-        st.error(f"Error generating market chart: {str(e)}")
+        st.error(f"Error generating VIX chart: {str(e)}")
         return None
 # --- Visualization ---
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
