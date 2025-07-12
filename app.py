@@ -604,9 +604,9 @@ def plot_stock_volume(ticker, lookback_days=30):
                     threads=True
                 )
 
-                # Handle multi-index column
+                # Check if MultiIndex and extract correct level
                 if isinstance(stock_data.columns, pd.MultiIndex):
-                    if ticker in stock_data.columns.levels[0]:
+                    if ticker in stock_data.columns.get_level_values(0):
                         stock_data = stock_data[ticker]
 
                 if not stock_data.empty:
