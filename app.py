@@ -581,57 +581,59 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
 
 def plot_stock_volume(ticker, lookback_days=30):
     """
-    Plot stock trading volume with cyberpunk styling and enhanced analytics
-    
+    Plot stock trading volume with cyberpunk styling and robust error handling.
+
     Parameters:
         ticker (str): Stock ticker symbol
         lookback_days (int): Number of days to display (default: 30)
-    
+
     Returns:
-        plotly.graph_objs.Figure: Interactive volume chart or None if data unavailable
+        plotly.graph_objs.Figure or None
     """
     try:
-        # Fetch stock data with forced refresh and retry logic
         max_retries = 3
         stock_data = None
-        
+
         for attempt in range(max_retries):
             try:
                 stock_data = yf.download(
                     ticker,
-                    period=f"{max(lookback_days, 5)}d",  # Ensure minimum 5 days
+                    period=f"{max(lookback_days, 5)}d",
                     interval="1d",
                     progress=False,
-                    group_by='ticker',
                     threads=True
                 )
+
+                # Handle multi-index column
+                if isinstance(stock_data.columns, pd.MultiIndex):
+                    if ticker in stock_data.columns.levels[0]:
+                        stock_data = stock_data[ticker]
+
                 if not stock_data.empty:
                     break
             except Exception as e:
                 if attempt == max_retries - 1:
                     raise e
-                time.sleep(1)  # Wait before retrying
+                time.sleep(1.5)  # Wait before retry
 
-        # Validate we have volume data
         if stock_data is None or stock_data.empty or 'Volume' not in stock_data.columns:
-            st.warning(f"⚠️ Could not retrieve volume data for {ticker} after {max_retries} attempts")
+            st.warning(f"⚠️ Could not retrieve usable volume data for {ticker}")
             return None
 
-        # Clean and prepare data
+        # Clean and prepare volume data
         volume = stock_data['Volume'].replace(0, np.nan).dropna()
         if volume.empty:
-            st.warning(f"⚠️ No valid volume data available for {ticker}")
+            st.warning(f"⚠️ No valid volume values for {ticker}")
             return None
 
-        # Calculate metrics
         avg_volume = volume.mean()
         current_volume = volume.iloc[-1]
         volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
-        
+
         # Create figure
         fig = go.Figure()
-        
-        # Add volume bars with cyberpunk gradient
+
+        # Add volume bars
         fig.add_trace(go.Bar(
             x=volume.index,
             y=volume,
@@ -642,25 +644,23 @@ def plot_stock_volume(ticker, lookback_days=30):
                 showscale=False,
                 line=dict(width=0)
             ),
-            hovertemplate="<b>Date:</b> %{x|%b %d %Y}<br>" +
-                        "<b>Volume:</b> %{y:,}<br>" +
-                        "<extra></extra>"
+            hovertemplate="<b>Date:</b> %{x|%b %d, %Y}<br>" +
+                          "<b>Volume:</b> %{y:,} shares<extra></extra>"
         ))
-        
-        # Add moving averages if we have enough data
-        if len(volume) >= 5:
-            for window, color in [(5, '#FF00FF'), (20, '#00FF00')]:
-                if len(volume) >= window:
-                    ma = volume.rolling(window=window).mean()
-                    fig.add_trace(go.Scatter(
-                        x=ma.index,
-                        y=ma,
-                        name=f'{window}-Day MA',
-                        line=dict(width=2, color=color),
-                        hovertemplate=f"<b>{window}-Day MA:</b> %{{y:,.0f}}<extra></extra>"
-                    ))
-        
-        # Add reference lines and annotations
+
+        # Add moving averages
+        for window, color in [(5, '#FF00FF'), (20, '#00FF00')]:
+            if len(volume) >= window:
+                ma = volume.rolling(window=window).mean()
+                fig.add_trace(go.Scatter(
+                    x=ma.index,
+                    y=ma,
+                    name=f'{window}-Day MA',
+                    line=dict(width=2, color=color),
+                    hovertemplate=f"<b>{window}-Day MA:</b> %{{y:,.0f}}<extra></extra>"
+                ))
+
+        # Horizontal average line
         fig.add_hline(
             y=avg_volume,
             line_dash="dot",
@@ -668,11 +668,12 @@ def plot_stock_volume(ticker, lookback_days=30):
             annotation_text=f"Avg: {avg_volume:,.0f}",
             annotation_position="top right"
         )
-        
+
+        # Annotate latest volume
         fig.add_annotation(
             x=volume.index[-1],
             y=current_volume,
-            text=f"<b>Current:</b> {current_volume:,.0f}<br>({volume_ratio:.1f}x avg)",
+            text=f"<b>Current:</b> {current_volume:,.0f}<br>({volume_ratio:.1f}× avg)",
             showarrow=True,
             arrowhead=1,
             ax=-40,
@@ -682,11 +683,11 @@ def plot_stock_volume(ticker, lookback_days=30):
             borderwidth=1,
             font=dict(color='#00FF00', size=12)
         )
-        
-        # Apply cyberpunk styling
+
+        # Layout with cyberpunk theme
         fig.update_layout(
             title={
-                'text': f"<b>{ticker.upper()} VOLUME ANALYSIS</b>",
+                'text': f"<b>{ticker.upper()} VOLUME ANALYSIS (LAST {lookback_days} DAYS)</b>",
                 'font': {'color': '#00FF00', 'size': 20},
                 'x': 0.5,
                 'xanchor': 'center'
@@ -722,11 +723,11 @@ def plot_stock_volume(ticker, lookback_days=30):
             margin=dict(l=50, r=50, b=50, t=90),
             height=500
         )
-        
+
         return fig
-        
+
     except Exception as e:
-        st.error(f"❌ Error generating volume plot: {str(e)}")
+        st.error(f"❌ Error generating volume plot for {ticker}: {str(e)}")
         return None
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
