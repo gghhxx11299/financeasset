@@ -579,67 +579,109 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 
-def plot_stock_volume(ticker, lookback_days=30):
+def plot_stock_volume(ticker, days=30):
     """
-    Reliable stock volume plotter with minimal error-prone operations
+    Plot DAILY trading volume for exactly 30 days with cyberpunk styling
     """
     try:
-        # 1. Fetch data with simple retry logic
-        stock_data = None
-        for _ in range(3):
-            try:
-                stock_data = yf.download(
-                    ticker,
-                    period=f"{max(lookback_days, 5)}d",
-                    interval="1d",
-                    progress=False
-                )
-                if not stock_data.empty:
-                    break
-                time.sleep(1)
-            except:
-                time.sleep(1)
-                continue
-
-        # 2. Basic validation (no ambiguous Series comparisons)
-        if stock_data is None:
-            st.warning(f"No data returned for {ticker}")
-            return None
-            
+        # 1. Fetch exactly 30 days of daily data (force cache refresh)
+        end_date = datetime.today()
+        start_date = end_date - timedelta(days=days+5)  # Buffer for holidays/weekends
+        
+        stock_data = yf.download(
+            ticker,
+            start=start_date,
+            end=end_date,
+            interval="1d",
+            progress=False,
+            auto_adjust=True
+        )
+        
+        # 2. Strict validation
         if stock_data.empty:
-            st.warning(f"Empty data for {ticker}")
+            st.warning(f"No market data found for {ticker}")
             return None
             
         if 'Volume' not in stock_data.columns:
-            st.warning(f"No Volume column for {ticker}")
+            st.warning(f"No volume data available for {ticker}")
+            return None
+            
+        # 3. Get exactly 30 trading days (most recent)
+        volume = stock_data['Volume'].dropna().iloc[-days:]
+        if len(volume) < 20:  # Require at least 20 data points
+            st.warning(f"Insufficient trading days ({len(volume)}/30)")
             return None
 
-        # 3. Safe data processing
-        volume = stock_data['Volume'].dropna()
-        if len(volume) == 0:
-            st.warning(f"No valid volume data for {ticker}")
-            return None
-
-        # 4. Simple visualization
+        # 4. Calculate metrics
+        avg_volume = volume.mean()
+        current_volume = volume[-1]
+        
+        # 5. Cyberpunk-styled plot
         fig = go.Figure()
+        
+        # Volume bars with neon effect
         fig.add_trace(go.Bar(
             x=volume.index,
             y=volume,
-            marker_color='#00FFFF'
+            name='Volume',
+            marker=dict(
+                color=volume,
+                colorscale=[(0, 'rgba(0,255,255,0.3)'), (1, 'rgba(0,255,255,0.9)')],
+                line=dict(width=0)
+            ),
+            hovertemplate="<b>%{x|%b %d}</b><br>%{y:,} shares<extra></extra>"
         ))
         
+        # 20-day moving average
+        ma20 = volume.rolling(20).mean()
+        fig.add_trace(go.Scatter(
+            x=ma20.index,
+            y=ma20,
+            name='20-Day Avg',
+            line=dict(color='#FF00FF', width=2),
+            hovertemplate="20-Day Avg: %{y:,}<extra></extra>"
+        ))
+        
+        # Current volume marker
+        fig.add_annotation(
+            x=volume.index[-1],
+            y=current_volume,
+            text=f"{current_volume/1e6:.1f}M",
+            showarrow=True,
+            arrowhead=1,
+            font=dict(color='#00FF00', size=12),
+            bordercolor='#00FFFF',
+            borderwidth=1
+        )
+        
+        # Cyberpunk layout
         fig.update_layout(
-            title=f"{ticker} Volume (Last {lookback_days} Days)",
-            plot_bgcolor='rgba(0,0,0,0)',
+            title=f"<b>{ticker} DAILY VOLUME (LAST 30 TRADING DAYS)</b>",
+            plot_bgcolor='rgba(5,5,15,0.7)',
             paper_bgcolor='rgba(5,5,15,0.7)',
-            xaxis=dict(color='#00FFFF'),
-            yaxis=dict(color='#00FFFF')
+            xaxis=dict(
+                gridcolor='rgba(0,255,255,0.1)',
+                title_font=dict(color='#00FFFF'),
+                tickfont=dict(color='#00FFFF')
+            ),
+            yaxis=dict(
+                gridcolor='rgba(0,255,255,0.1)',
+                title_font=dict(color='#00FFFF'),
+                tickfont=dict(color='#00FFFF'),
+                tickformat=","
+            ),
+            hoverlabel=dict(
+                bgcolor='rgba(0,5,10,0.8)',
+                bordercolor='#00FFFF',
+                font=dict(color='#00FF00')
+            ),
+            height=500
         )
         
         return fig
 
     except Exception as e:
-        st.error(f"Volume plot failed for {ticker}: {str(e)}")
+        st.error(f"Failed to generate volume plot: {str(e)}")
         return None
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
