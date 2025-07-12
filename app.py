@@ -3,7 +3,7 @@ from fpdf import FPDF
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime
 import yfinance as yf
 import math
 import numpy as np
@@ -14,306 +14,37 @@ import requests
 from bs4 import BeautifulSoup
 from io import StringIO
 from plotly.subplots import make_subplots
-import traceback
 
-# --- ULTRA CYBERPUNK NEON STYLING ---
+# --- Extensive Custom CSS for styling ---
+# --- EXTREME CSS STYLING ---
+# --- ULTRA CYBERPUNK CSS STYLING ---
+# --- Enhanced Cyberpunk CSS with Better Layout ---
+# --- ULTRA CYBERPUNK CSS WITH WIDER CHARTS ---
+# --- ENHANCED CYBERPUNK CSS WITH BALANCED LAYOUT ---
 st.markdown("""
 <style>
-    /* === CYBERPUNK THEME VARIABLES === */
+    /* === CYBERPUNK BASE === */
     :root {
         --neon-blue: #0ff;
-        --neon-pink: #f0f;
         --neon-green: #0f0;
-        --neon-purple: #9f0;
-        --neon-orange: #ff5e00;
+        --neon-pink: #f0f;
         --dark-bg: #0a0a14;
         --darker-bg: #050510;
-        --matrix-green: #00ff41;
-        --cyber-yellow: #ffd300;
-        
-        --glow-blue: 0 0 15px rgba(0, 255, 255, 0.9);
-        --glow-pink: 0 0 15px rgba(255, 0, 255, 0.9);
-        --glow-green: 0 0 15px rgba(0, 255, 0, 0.9);
-        --glow-purple: 0 0 15px rgba(153, 0, 255, 0.9);
-        
-        --scanline: repeating-linear-gradient(
-            0deg,
-            rgba(0, 255, 255, 0.05),
-            rgba(0, 255, 255, 0.05) 1px,
-            transparent 1px,
-            transparent 2px
-        );
-    }
-    
-    /* === GLOBAL STYLES === */
-    html, body, #root, .main {
-        background-color: var(--darker-bg) !important;
-        color: var(--neon-blue) !important;
-        font-family: 'Courier New', monospace !important;
-        background-image: 
-            radial-gradient(circle at 10% 20%, rgba(0, 255, 255, 0.05) 0%, transparent 20%),
-            radial-gradient(circle at 90% 80%, rgba(255, 0, 255, 0.05) 0%, transparent 20%),
-            var(--scanline);
+        --glow-blue: 0 0 10px rgba(0, 255, 255, 0.7);
+        --glow-green: 0 0 10px rgba(0, 255, 0, 0.7);
     }
     
     /* === MAIN CONTAINER === */
     .main {
-        background: linear-gradient(135deg, rgba(10, 10, 30, 0.9) 0%, rgba(5, 5, 15, 0.95) 100%) !important;
-        border: 2px solid var(--neon-blue) !important;
-        box-shadow: 
-            var(--glow-blue),
-            inset 0 0 30px rgba(0, 255, 255, 0.3),
-            0 0 50px rgba(0, 255, 255, 0.2) !important;
+        background: linear-gradient(135deg, var(--dark-bg) 0%, var(--darker-bg) 100%) !important;
+        border: 1px solid var(--neon-blue) !important;
+        box-shadow: var(--glow-blue), inset 0 0 20px rgba(0, 255, 255, 0.2) !important;
         border-radius: 0 !important;
         padding: 2rem !important;
         max-width: 98vw !important;
         margin: 0 auto !important;
-        position: relative;
-        overflow: hidden;
     }
-    
-    .main::before {
-        content: "";
-        position: absolute;
-        top: -10px;
-        left: -10px;
-        right: -10px;
-        bottom: -10px;
-        border: 1px solid var(--neon-pink);
-        border-radius: 0;
-        animation: pulse 4s infinite alternate;
-        pointer-events: none;
-        z-index: -1;
-    }
-    
-    @keyframes pulse {
-        0% { opacity: 0.3; }
-        100% { opacity: 0.7; }
-    }
-    
-    /* === HEADERS === */
-    h1, h2, h3, h4, h5, h6 {
-        color: var(--neon-green) !important;
-        text-shadow: 0 0 10px var(--neon-green) !important;
-        font-weight: bold !important;
-        letter-spacing: 1px !important;
-        border-bottom: 1px solid var(--neon-pink) !important;
-        padding-bottom: 0.5rem !important;
-        margin-bottom: 1.5rem !important;
-        position: relative;
-    }
-    
-    h1::after, h2::after, h3::after {
-        content: "";
-        position: absolute;
-        bottom: -2px;
-        left: 0;
-        width: 100%;
-        height: 1px;
-        background: linear-gradient(90deg, var(--neon-green), var(--neon-pink));
-        box-shadow: 0 0 10px var(--neon-pink);
-    }
-    
-    /* === INPUT CONTROLS === */
-    .stTextInput input, .stNumberInput input, .stSelectbox select {
-        background-color: rgba(10, 15, 25, 0.8) !important;
-        border: 1px solid var(--neon-blue) !important;
-        color: var(--neon-green) !important;
-        box-shadow: var(--glow-blue), inset 0 0 10px rgba(0, 255, 255, 0.2) !important;
-        border-radius: 0 !important;
-        padding: 0.5rem !important;
-        font-family: 'Courier New', monospace !important;
-    }
-    
-    .stTextInput input:focus, .stNumberInput input:focus, .stSelectbox select:focus {
-        border-color: var(--neon-pink) !important;
-        box-shadow: var(--glow-pink), inset 0 0 15px rgba(255, 0, 255, 0.3) !important;
-        outline: none !important;
-    }
-    
-    /* === BUTTONS === */
-    .stButton>button {
-        background: linear-gradient(135deg, rgba(0, 255, 255, 0.3), rgba(0, 100, 255, 0.5)) !important;
-        border: 1px solid var(--neon-blue) !important;
-        color: white !important;
-        font-weight: bold !important;
-        border-radius: 0 !important;
-        padding: 0.5rem 1.5rem !important;
-        box-shadow: var(--glow-blue) !important;
-        transition: all 0.3s ease !important;
-        text-transform: uppercase !important;
-        letter-spacing: 1px !important;
-        font-family: 'Courier New', monospace !important;
-    }
-    
-    .stButton>button:hover {
-        background: linear-gradient(135deg, rgba(0, 255, 255, 0.5), rgba(0, 100, 255, 0.7)) !important;
-        box-shadow: 0 0 20px var(--neon-blue) !important;
-        transform: translateY(-2px) !important;
-    }
-    
-    /* === EXPANDERS === */
-    div[data-testid="stExpander"] > div {
-        width: 100% !important;
-        background: rgba(10, 15, 25, 0.9) !important;
-        border: 1px solid var(--neon-green) !important;
-        box-shadow: var(--glow-green), inset 0 0 20px rgba(0, 255, 0, 0.1) !important;
-        margin-bottom: 1.5rem !important;
-    }
-    
-    .st-emotion-cache-1q7spjk {
-        color: var(--neon-green) !important;
-    }
-    
-    /* === DATA TABLES === */
-    .stDataFrame {
-        width: 100% !important;
-        background: rgba(5, 5, 15, 0.7) !important;
-        border: 1px solid var(--neon-blue) !important;
-        box-shadow: var(--glow-blue) !important;
-    }
-    
-    table {
-        border-collapse: collapse !important;
-        border: 1px solid var(--neon-pink) !important;
-    }
-    
-    th {
-        background: rgba(0, 255, 255, 0.2) !important;
-        color: var(--neon-blue) !important;
-        border-bottom: 1px solid var(--neon-green) !important;
-    }
-    
-    td {
-        border-bottom: 1px solid rgba(0, 255, 255, 0.1) !important;
-        color: var(--neon-green) !important;
-    }
-    
-    tr:hover {
-        background: rgba(0, 255, 255, 0.1) !important;
-    }
-    
-    /* === METRIC CARDS === */
-    .stMetric {
-        background: rgba(10, 10, 20, 0.8) !important;
-        border: 1px solid var(--neon-blue) !important;
-        box-shadow: var(--glow-blue), inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
-        padding: 1.5rem !important;
-        margin-bottom: 1.5rem !important;
-        border-radius: 0 !important;
-        transition: all 0.3s ease !important;
-    }
-    
-    .stMetric:hover {
-        transform: translateY(-3px) !important;
-        box-shadow: 0 0 25px var(--neon-blue) !important;
-    }
-    
-    .stMetricLabel {
-        color: var(--neon-blue) !important;
-        font-size: 0.9rem !important;
-    }
-    
-    .stMetricValue {
-        color: var(--neon-green) !important;
-        font-size: 1.8rem !important;
-        font-weight: bold !important;
-        text-shadow: 0 0 10px var(--neon-green) !important;
-    }
-    
-    /* === PLOTLY CHARTS === */
-    .stPlotlyChart {
-        width: 100% !important;
-        min-width: 100% !important;
-        background: rgba(5, 5, 15, 0.7) !important;
-        border: 1px solid var(--neon-purple) !important;
-        box-shadow: var(--glow-purple) !important;
-        margin-bottom: 2rem !important;
-    }
-    
-    /* === FOOTER === */
-    .footer {
-        background: rgba(0, 5, 10, 0.9) !important;
-        border-top: 1px solid var(--neon-blue) !important;
-        padding: 1.5rem !important;
-        margin-top: 2rem !important;
-        text-align: center !important;
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .footer::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, var(--neon-blue), transparent);
-        box-shadow: 0 0 10px var(--neon-blue);
-    }
-    
-    .footer a {
-        color: var(--neon-green) !important;
-        margin: 0 10px !important;
-        text-decoration: none !important;
-        position: relative;
-    }
-    
-    .footer a:hover {
-        color: var(--neon-pink) !important;
-        text-shadow: 0 0 10px var(--neon-pink) !important;
-    }
-    
-    .footer a::after {
-        content: "";
-        position: absolute;
-        bottom: -2px;
-        left: 0;
-        width: 0;
-        height: 1px;
-        background: var(--neon-pink);
-        transition: width 0.3s ease;
-    }
-    
-    .footer a:hover::after {
-        width: 100%;
-    }
-    
-    /* === SCROLLBAR === */
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: var(--darker-bg);
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: var(--neon-blue);
-        border-radius: 4px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: var(--neon-pink);
-        box-shadow: 0 0 10px var(--neon-pink);
-    }
-    
-    /* === ANIMATIONS === */
-    @keyframes flicker {
-        0%, 19.999%, 22%, 62.999%, 64%, 64.999%, 70%, 100% {
-            opacity: 1;
-        }
-        20%, 21.999%, 63%, 63.999%, 65%, 69.999% {
-            opacity: 0.7;
-        }
-    }
-    
-    .flicker {
-        animation: flicker 3s linear infinite;
-    }
-    
+
     /* === THREE-COLUMN LAYOUT === */
     .stContainer {
         display: flex !important;
@@ -321,7 +52,7 @@ st.markdown("""
         gap: 1.5rem !important;
         margin-bottom: 2rem !important;
     }
-    
+
     .stColumn {
         flex: 1 !important;
         min-width: 300px !important;
@@ -329,77 +60,68 @@ st.markdown("""
         border: 1px solid rgba(0, 255, 255, 0.3) !important;
         padding: 1.5rem !important;
         box-shadow: 0 0 15px rgba(0, 255, 255, 0.2) !important;
-        position: relative;
-        overflow: hidden;
     }
-    
-    .stColumn::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(90deg, var(--neon-blue), var(--neon-pink));
+
+    /* === WIDE ELEMENTS === */
+    div[data-testid="stExpander"] > div {
+        width: 100% !important;
+        background: rgba(10, 15, 25, 0.9) !important;
+        border: 1px solid var(--neon-green) !important;
+        box-shadow: var(--glow-green) !important;
     }
-    
-    /* === SPECIAL EFFECTS === */
-    .cyberpunk-divider {
-        height: 1px;
-        background: linear-gradient(90deg, transparent, var(--neon-blue), transparent);
-        box-shadow: 0 0 10px var(--neon-blue);
-        margin: 2rem 0;
+
+    .stPlotlyChart {
+        width: 100% !important;
+        min-width: 100% !important;
     }
-    
-    .cyberpunk-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        background: rgba(0, 255, 255, 0.2);
-        border: 1px solid var(--neon-blue);
-        color: var(--neon-green);
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-right: 0.5rem;
-        margin-bottom: 0.5rem;
+
+    /* === METRIC CARDS === */
+    .stMetric {
+        background: rgba(10, 10, 20, 0.8) !important;
+        border: 1px solid var(--neon-blue) !important;
+        box-shadow: var(--glow-blue), inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
+        padding: 1.5rem !important;
+        margin-bottom: 1.5rem !important;
     }
-    
-    /* === RESPONSIVE ADJUSTMENTS === */
-    @media (max-width: 768px) {
-        .stColumn {
-            min-width: 100% !important;
-        }
-        
-        .main {
-            padding: 1rem !important;
-        }
+
+    /* === DATA TABLES === */
+    .stDataFrame {
+        width: 100% !important;
+        background: rgba(5, 5, 15, 0.7) !important;
+        border: 1px solid var(--neon-blue) !important;
+        box-shadow: var(--glow-blue) !important;
+    }
+
+    /* === FOOTER === */
+    .footer {
+        background: rgba(0, 5, 10, 0.9) !important;
+        border-top: 1px solid var(--neon-blue) !important;
+        padding: 1.5rem !important;
+        margin-top: 2rem !important;
+        text-align: center !important;
+    }
+
+    .footer a {
+        color: var(--neon-green) !important;
+        margin: 0 10px !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- ENHANCED FOOTER WITH CYBERPUNK ELEMENTS ---
+# --- FOOTER WITH CREDITS ---
 st.markdown("""
 <div class="footer">
-    <div style="margin-bottom: 1rem;">
-        <span style="color: var(--neon-blue); font-size: 1.2rem;" class="flicker">MADE WITH ❤️ BY</span>
-        <span style="color: var(--neon-green); font-weight: bold; font-size: 1.3rem; text-shadow: 0 0 10px var(--neon-green);">GEABRAL MULUGETA</span>
+    <div>
+        <span style="color: #0ff;">Made with ❤️ by </span>
+        <span style="color: #0f0; font-weight: bold;">Geabral Mulugeta</span>
     </div>
     <div style="margin-top: 1rem;">
-        <a href="https://github.com/gghhxx11299" target="_blank">GITHUB</a>
-        <span style="color: var(--neon-blue);"> | </span>
-        <a href="https://www.linkedin.com/in/geabral-mulugeta-334358327/" target="_blank">LINKEDIN</a>
-        <span style="color: var(--neon-blue);"> | </span>
-        <a href="#" onclick="alert('COMING SOON: PERSONAL WEBSITE')">PORTFOLIO</a>
-    </div>
-    <div class="cyberpunk-divider"></div>
-    <div style="font-size: 0.8rem; color: var(--neon-blue);">
-        <span class="cyberpunk-badge">ALPHA 2.0</span>
-        <span class="cyberpunk-badge">NEURAL NET</span>
-        <span class="cyberpunk-badge">OPTIMIZED</span>
+        <a href="https://github.com/gghhxx11299" target="_blank">GitHub</a>
+        <span style="color: #0ff;"> | </span>
+        <a href="https://www.linkedin.com/in/geabral-mulugeta-334358327/" target="_blank">LinkedIn</a>
     </div>
 </div>
 """, unsafe_allow_html=True)
-
 SECTOR_MAP = {
     "technology": ["XLK", "VGT", "QTEC"],
     "financial": ["XLF", "VFH", "IYF"],
@@ -508,64 +230,38 @@ def implied_volatility(option_market_price, S, K, T, r, option_type="call", tol=
 # --- Market Data Functions ---
 def get_option_market_price(ticker, option_type, strike, expiry_date):
     """Fetch current market price for given option"""
+    stock = yf.Ticker(ticker)
     try:
-        stock = yf.Ticker(ticker)
         if expiry_date not in stock.options:
             return None
         opt_chain = stock.option_chain(expiry_date)
         options = opt_chain.calls if option_type == "call" else opt_chain.puts
         row = options[options['strike'] == strike]
         return None if row.empty else float(row.iloc[0]['lastPrice'])
-    except Exception as e:
-        st.error(f"Error fetching option market price: {e}")
+    except:
         return None
 
-@st.cache_data(ttl=3600)  # Cache for 1 hour
-
 def get_us_10yr_treasury_yield():
-    """Fetch current 10-year Treasury yield with multiple fallback options"""
-    fallback_yield = 0.025  # Default fallback 2.5%
-    
-    # Try multiple data sources
-    sources = [
-        # New Treasury URL
-        "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=all",
-        
-        # Alternative API
-        "https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=10year&apikey=demo",
-        
-        # FRED API (requires API key)
-        "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10"
-    ]
-    
-    for url in sources:
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            
-            if "alphavantage" in url:
-                data = response.json()
-                if 'data' in data and len(data['data']) > 0:
-                    return float(data['data'][0]['value']) / 100
-                    
-            elif "fred.stlouisfed" in url:
-                csv_data = StringIO(response.text)
-                df = pd.read_csv(csv_data)
-                if not df.empty:
-                    return float(df.iloc[-1, 1]) / 100
-                    
-            else:  # Treasury URL
-                soup = BeautifulSoup(response.text, 'html.parser')
-                table = soup.find('table')
-                if table:
-                    df = pd.read_html(str(table))[0]
-                    if '10 Yr' in df.columns:
-                        return float(df['10 Yr'].iloc[-1]) / 100
-                        
-        except Exception as e:
-            continue
-            
-    return fallback_yield
+    """Fetch current 10-year Treasury yield"""
+    url = "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/Datasets/yield.csv"
+    fallback_yield = 0.025  # fallback 2.5%
+
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+
+        csv_data = StringIO(response.text)
+        df = pd.read_csv(csv_data)
+
+        df = df.dropna(subset=["10 Yr"])
+        if df.empty:
+            return fallback_yield
+
+        latest_yield_str = df["10 Yr"].iloc[-1]
+        return float(latest_yield_str) / 100
+    except Exception:
+        return fallback_yield
+
 # --- Volatility Analysis ---
 def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     """Calculate how current IV compares to historical levels"""
@@ -578,8 +274,103 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     except Exception as e:
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
-
+def plot_stock_volume(ticker, days_to_expiry):
+    """Plot stock/ETF trading volume - handles both simple and MultiIndex DataFrames"""
+    try:
+        # 1. Fetch data with multiple fallback attempts
+        stock_data = None
+        fetch_attempts = [
+            {'auto_adjust': True, 'actions': False},
+            {'auto_adjust': False, 'actions': False},
+            {'auto_adjust': True, 'actions': True},
+            {'auto_adjust': False, 'actions': True}
+        ]
         
+        for attempt in fetch_attempts:
+            try:
+                stock_data = yf.download(
+                    ticker,
+                    period=f"{min(days_to_expiry, 365)}d",
+                    progress=False,
+                    **attempt
+                )
+                if isinstance(stock_data, pd.DataFrame) and not stock_data.empty:
+                    break
+            except:
+                continue
+
+        # 2. Validate data structure
+        if not isinstance(stock_data, pd.DataFrame) or stock_data.empty:
+            st.warning(f"⚠️ No market data available for {ticker}")
+            return None
+
+        # 3. Find volume column (handles both regular and MultiIndex columns)
+        volume_col = None
+        for col in stock_data.columns:
+            # Case 1: Simple string column name (e.g., 'Volume')
+            if isinstance(col, str) and 'volume' in col.lower():
+                volume_col = col
+                break
+            # Case 2: MultiIndex tuple column (e.g., ('Volume', 'SPY'))
+            elif isinstance(col, tuple) and any('volume' in str(s).lower() for s in col):
+                volume_col = col
+                break
+
+        if not volume_col:
+            st.warning(f"📊 Volume data missing for {ticker} (Available columns: {stock_data.columns.tolist()})")
+            return None
+
+        # 4. Clean data
+        clean_data = stock_data[[volume_col]].dropna()
+        if clean_data.empty:
+            st.warning(f"🧹 No valid volume data after cleaning for {ticker}")
+            return None
+
+        # 5. Create plot
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=clean_data.index,
+            y=clean_data[volume_col],
+            marker_color='#1f77b4',
+            hovertemplate="<b>Date</b>: %{x|%b %d}<br><b>Volume</b>: %{y:,}<extra></extra>"
+        ))
+        
+        # Add average line if we have valid data
+        try:
+            avg_volume = clean_data[volume_col].mean()
+            fig.add_shape(
+                type="line",
+                x0=clean_data.index[0],
+                x1=clean_data.index[-1],
+                y0=avg_volume,
+                y1=avg_volume,
+                line=dict(color='#ff7f0e', dash='dot')
+            )
+            fig.add_annotation(
+                x=clean_data.index[-1],
+                y=avg_volume,
+                text=f"Avg: {avg_volume:,.0f}",
+                showarrow=False,
+                xanchor='right',
+                yanchor='bottom',
+                font=dict(color="#ff7f0e")
+            )
+        except:
+            pass
+        
+        fig.update_layout(
+            title=f"<b>{ticker} Volume</b> | Last {len(clean_data)} Trading Days",
+            yaxis_title="Shares Traded",
+            template="plotly_white",
+            hovermode="x unified"
+        )
+        
+        return fig
+
+    except Exception as e:
+        st.error(f"❌ Error processing {ticker}: {str(e)}")
+        return None
+
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
     fig = make_subplots(rows=3, cols=1, 
@@ -700,8 +491,10 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     pdf.cell(200, 10, "Trading Advice", ln=True)
     pdf.set_font("Arial", size=12)
     for _, row in trading_advice.iterrows():
+        # Handle special characters in advice
+        text = f"{row['Advice']}: {row['Reason']}"
         try:
-            pdf.multi_cell(200, 10, f"{row['Advice']}: {row['Reason']}")
+            pdf.multi_cell(200, 10, text.encode('latin-1', 'replace').decode('latin-1'))
         except:
             pdf.multi_cell(200, 10, "Trading advice (special characters omitted)")
 
@@ -709,7 +502,15 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     pdf.set_font("Arial", 'I', size=10)
     pdf.cell(200, 10, "Note: Interactive plots are available in the web interface", ln=True)
 
-    return pdf.output(dest='S').encode('latin-1')
+    # Save to bytes with error handling
+    try:
+        return pdf.output(dest='S').encode('latin-1', 'replace')
+    except:
+        try:
+            return pdf.output(dest='S').encode('utf-8')
+        except Exception as e:
+            st.error(f"PDF generation error: {str(e)}")
+            return None
 
 def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital):
     """Generate personalized trading advice based on analysis"""
@@ -749,37 +550,7 @@ def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comf
         "Reason": reasons
     })
 
-# --- Company Financials ---
-def get_company_financials(ticker):
-    """Fetch and display key financial metrics for a stock"""
-    try:
-        company = yf.Ticker(ticker)
-        
-        # Check if this is actually a stock (has financials)
-        if not company.info:
-            return False, None
-        
-        # Get key financial data
-        financials = {
-            'Company Name': company.info.get('longName', 'N/A'),
-            'Sector': company.info.get('sector', 'N/A'),
-            'Industry': company.info.get('industry', 'N/A'),
-            'Market Cap': f"${company.info.get('marketCap', 0)/1e9:.2f}B" if company.info.get('marketCap') else 'N/A',
-            'P/E Ratio': company.info.get('trailingPE', 'N/A'),
-            'EPS': company.info.get('trailingEps', 'N/A'),
-            'Dividend Yield': f"{company.info.get('dividendYield', 0)*100:.2f}%" if company.info.get('dividendYield') else '0%',
-            '52 Week High': f"${company.info.get('fiftyTwoWeekHigh', 'N/A')}",
-            '52 Week Low': f"${company.info.get('fiftyTwoWeekLow', 'N/A')}",
-            'Beta': company.info.get('beta', 'N/A')
-        }
-        
-        return True, pd.DataFrame.from_dict(financials, orient='index', columns=['Value'])
-    
-    except Exception as e:
-        st.error(f"Error fetching financial data: {e}")
-        return False, None
-
-# --- Main Streamlit App ---
+# --- Streamlit UI ---
 def main():
     st.title("Options Profit & Capital Advisor")
 
@@ -806,10 +577,6 @@ def main():
         st.session_state.iv_percentile = None
     if "volume_fig" not in st.session_state:
         st.session_state.volume_fig = None
-    if "is_stock" not in st.session_state:
-        st.session_state.is_stock = None
-    if "financials_df" not in st.session_state:
-        st.session_state.financials_df = None
 
     # Input widgets
     st.markdown("### Input Parameters")
@@ -830,18 +597,6 @@ def main():
             max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
             min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
             pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
-
-    # Check if ticker is a stock and get financials
-    if ticker:
-        is_stock, financials_df = get_company_financials(ticker)
-        st.session_state.is_stock = is_stock
-        st.session_state.financials_df = financials_df
-        
-        if not is_stock:
-            st.warning(f"⚠️ {ticker} does not appear to be a stock. This tool works best with individual stocks.")
-        elif financials_df is not None:
-            with st.expander("View Company Financials", expanded=True):
-                st.dataframe(financials_df, use_container_width=True)
 
     # Calculation button
     st.markdown("---")
@@ -872,9 +627,7 @@ def main():
                     risk_free_rate = live_rate
 
                 T = days_to_expiry / 365
-                stock = yf.Ticker(ticker)
-                stock_data = stock.history(period="1d")
-                
+                stock_data = yf.Ticker(ticker).history(period="1d")
                 if stock_data.empty:
                     st.error("Could not fetch stock data. Please check the ticker symbol.")
                     st.session_state.calculation_done = False
@@ -883,40 +636,30 @@ def main():
                 S = float(stock_data["Close"].iloc[-1])
 
                 # Find closest expiry date
-                try:
-                    options_expiries = stock.options
-                    if not options_expiries:
-                        st.error("No option expiry dates available for this ticker.")
-                        st.session_state.calculation_done = False
-                        return
-                    
-                    expiry_date = None
-                    for date in options_expiries:
-                        dt = datetime.strptime(date, "%Y-%m-%d")
-                        diff_days = abs((dt - datetime.now()).days - days_to_expiry)
-                        if diff_days <= 5:
-                            expiry_date = date
-                            break
+                options_expiries = yf.Ticker(ticker).options
+                expiry_date = None
+                for date in options_expiries:
+                    dt = datetime.strptime(date, "%Y-%m-%d")
+                    diff_days = abs((dt - datetime.now()).days - days_to_expiry)
+                    if diff_days <= 5:
+                        expiry_date = date
+                        break
 
-                    if expiry_date is None:
-                        st.error("No matching expiry date found near the specified days to expiry.")
-                        st.session_state.calculation_done = False
-                        return
-                except Exception as e:
-                    st.error(f"Error fetching option dates: {e}")
+                if expiry_date is None:
+                    st.error("No matching expiry date found near the specified days to expiry.")
                     st.session_state.calculation_done = False
                     return
 
                 # Get market price and implied volatility
                 price_market = get_option_market_price(ticker, option_type, strike_price, expiry_date)
                 if price_market is None:
-                    st.error("Failed to fetch option market price. Try a different strike or expiry.")
+                    st.error("Failed to fetch option market price. Try a closer-to-the-money strike.")
                     st.session_state.calculation_done = False
                     return
 
                 iv = implied_volatility(price_market, S, strike_price, T, risk_free_rate, option_type)
                 if iv is None:
-                    st.error("Could not compute implied volatility. Try a different strike.")
+                    st.error("Could not compute implied volatility. Try a closer-to-the-money strike.")
                     st.session_state.calculation_done = False
                     return
 
@@ -950,27 +693,21 @@ def main():
                 # Sector analysis
                 etfs = SECTOR_MAP.get(sector, [])
                 symbols = [ticker] + etfs
-                try:
-                    df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
-                    
-                    if return_type == "Log":
-                        returns = (df / df.shift(1)).apply(np.log).dropna()
-                    else:
-                        returns = df.pct_change().dropna()
+                df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
 
-                    # Z-score calculation
-                    window = 20
-                    zscore = ((df[ticker] - df[ticker].rolling(window).mean()) / df[ticker].rolling(window).std()).dropna()
-                    latest_z = float(zscore.iloc[-1]) if not zscore.empty else 0
+                if return_type == "Log":
+                    returns = (df / df.shift(1)).apply(np.log).dropna()
+                else:
+                    returns = df.pct_change().dropna()
 
-                    # Correlation analysis
-                    correlation = float(returns.corr().loc[ticker].drop(ticker).mean())
-                    iv_divergences = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
-                except Exception as e:
-                    st.warning(f"Sector analysis incomplete: {e}")
-                    latest_z = 0
-                    correlation = 0.5
-                    iv_divergences = {}
+                # Z-score calculation
+                window = 20
+                zscore = ((df[ticker] - df[ticker].rolling(window).mean()) / df[ticker].rolling(window).std()).dropna()
+                latest_z = float(zscore.iloc[-1]) if not zscore.empty else 0
+
+                # Correlation analysis
+                correlation = float(returns.corr().loc[ticker].drop(ticker).mean())
+                iv_divergences = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
 
                 # Capital adjustment logic
                 capital = comfortable_capital
@@ -1114,7 +851,6 @@ def main():
 
             except Exception as e:
                 st.error(f"Calculation failed: {str(e)}")
-                st.error(traceback.format_exc())
                 st.session_state.calculation_done = False
 
     # Display results if calculation is done
@@ -1184,3 +920,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
