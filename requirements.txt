@@ -2,10 +2,11 @@ streamlit
 yfinance
 pandas
 numpy
-scipy
-plotly
 matplotlib
+plotly
+seaborn
+scipy
 fpdf
 requests
 beautifulsoup4
-kaleido
+pypfopt
