@@ -580,7 +580,7 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         return None
 
 def plot_stock_volume(ticker, days_to_expiry):
-    """Plot stock/ETF trading volume"""
+    """Plot stock/ETF trading volume with proper formatting"""
     try:
         # Fetch data with error handling
         stock_data = yf.download(
@@ -589,51 +589,71 @@ def plot_stock_volume(ticker, days_to_expiry):
             progress=False
         )
         
-        if stock_data.empty:
-            st.warning(f"⚠️ No market data available for {ticker}")
+        if stock_data.empty or 'Volume' not in stock_data.columns:
+            st.warning(f"⚠️ No volume data available for {ticker}")
             return None
+
+        # Format volume numbers properly
+        formatted_volumes = stock_data['Volume'].apply(lambda x: f"{x:,.0f}")
+        avg_volume = stock_data['Volume'].mean()
+        formatted_avg = f"{avg_volume:,.0f}"
 
         # Create the figure
         fig = go.Figure()
         
-        # Add volume bars
+        # Add volume bars with proper formatting
         fig.add_trace(go.Bar(
             x=stock_data.index,
             y=stock_data['Volume'],
             name='Volume',
-            marker_color='#1f77b4',
-            hovertemplate="Date: %{x|%b %d}<br>Volume: %{y:,}<extra></extra>"
+            marker_color='#00FFFF',  # Neon blue
+            hovertemplate=(
+                "<b>Date</b>: %{x|%b %d, %Y}<br>"
+                "<b>Volume</b>: %{y:,}<br>"
+                "<extra></extra>"
+            )
         ))
         
-        # Add average line
-        avg_volume = float(stock_data['Volume'].mean())  # Ensure it's a scalar
+        # Add average line with proper formatting
         fig.add_hline(
             y=avg_volume,
             line_dash="dot",
-            line_color="#ff7f0e",
-            annotation_text=f"Avg: {avg_volume:,.0f}",
-            annotation_position="top right"
+            line_color="#FF00FF",  # Neon pink
+            annotation_text=f"Avg: {formatted_avg}",
+            annotation_position="top right",
+            annotation_font_color="#00FF00"  # Neon green
         )
         
-        # Update layout
+        # Update layout with cyberpunk styling
         fig.update_layout(
-            title=f"<b>{ticker} Trading Volume</b><br>Last {len(stock_data)} Trading Days",
-            xaxis_title="Date",
-            yaxis_title="Volume (Shares)",
+            title={
+                'text': f"<b>{ticker} VOLUME TRADED</b>",
+                'font': {'color': '#00FF00'}  # Neon green
+            },
+            xaxis_title="DATE",
+            yaxis_title="VOLUME (SHARES)",
             showlegend=False,
             hovermode="x unified",
             template="plotly_dark",
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(10,10,20,0.5)',
+            paper_bgcolor='rgba(5,5,15,0.7)',
             margin=dict(l=50, r=50, b=50, t=80),
-            xaxis=dict(showgrid=True, gridcolor='rgba(100,100,100,0.2)'),
-            yaxis=dict(showgrid=True, gridcolor='rgba(100,100,100,0.2)')
+            xaxis=dict(
+                showgrid=True, 
+                gridcolor='rgba(0,255,255,0.1)',  # Neon blue grid
+                title_font=dict(color='#00FFFF')   # Neon blue
+            ),
+            yaxis=dict(
+                showgrid=True, 
+                gridcolor='rgba(0,255,255,0.1)',  # Neon blue grid
+                title_font=dict(color='#00FFFF')   # Neon blue
+            )
         )
         
         return fig
 
     except Exception as e:
-        st.error(f"❌ Error plotting volume for {ticker}: {str(e)}")
+        st.error(f"❌ ERROR PLOTTING {ticker} VOLUME: {str(e)}")
         return None
 
 
