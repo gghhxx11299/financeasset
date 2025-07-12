@@ -628,7 +628,7 @@ def plot_stock_volume(ticker, lookback_days=30):
                          "<b>Volume:</b> %{y:,}<br>" +
                          "<b>Avg:</b> %{text:,}<extra></extra>",
             text=[f"{avg_volume:,.0f}"] * len(volume)
-        )
+        ))
         
         # Add moving averages
         for window in [5, 20]:
@@ -658,6 +658,7 @@ def plot_stock_volume(ticker, lookback_days=30):
             bordercolor='#00FFFF',
             borderwidth=1,
             font=dict(color='#00FF00')
+        )
         
         # Add volume ratio indicator
         fig.add_shape(
@@ -739,9 +740,6 @@ def plot_stock_volume(ticker, lookback_days=30):
     except Exception as e:
         st.error(f"❌ ERROR IN VOLUME PLOT: {str(e)}")
         return None
-
-
-        
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
     fig = make_subplots(rows=3, cols=1, 
