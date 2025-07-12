@@ -15,61 +15,262 @@ from bs4 import BeautifulSoup
 from io import StringIO
 from plotly.subplots import make_subplots
 
-# --- Custom CSS for styling ---
+# --- Extensive Custom CSS for styling ---
 st.markdown("""
 <style>
+    /* Main page styling */
     .main {
-        background-color: #f8f9fa;
+        background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ed 100%);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
+    
+    /* Header styling */
+    .header {
+        color: #2c3e50;
+        font-weight: 800;
+        margin-bottom: 25px;
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+        border-bottom: 2px solid #4CAF50;
+        padding-bottom: 10px;
+    }
+    
+    /* Button styling */
     .stButton>button {
-        background-color: #4CAF50;
+        background: linear-gradient(to right, #4CAF50, #2E7D32);
         color: white;
         font-weight: bold;
-        border-radius: 5px;
-        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        padding: 0.8rem 1.5rem;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        font-size: 1rem;
     }
     .stButton>button:hover {
-        background-color: #45a049;
+        background: linear-gradient(to right, #43A047, #1B5E20);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 8px rgba(0,0,0,0.15);
     }
+    .stButton>button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* Footer styling */
     .footer {
         position: fixed;
         left: 0;
         bottom: 0;
         width: 100%;
-        background-color: #343a40;
+        background: linear-gradient(to right, #343a40, #212529);
         color: white;
         text-align: center;
-        padding: 10px;
+        padding: 12px;
         font-size: 14px;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        z-index: 100;
     }
+    .footer a {
+        color: #4CAF50;
+        text-decoration: none;
+    }
+    
+    /* Card styling */
     .metric-card {
-        background-color: white;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .plot-container {
-        background-color: white;
-        border-radius: 10px;
-        padding: 15px;
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
         margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        border-left: 4px solid #4CAF50;
     }
-    .header {
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.12);
+    }
+    
+    /* Plot container styling */
+    .plot-container {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 25px;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+        border: 1px solid #e0e0e0;
+    }
+    
+    /* Expander styling */
+    .st-expander {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        border: 1px solid #e0e0e0;
+    }
+    .st-expander .streamlit-expanderHeader {
+        font-weight: 600;
         color: #2c3e50;
+        padding: 12px 15px;
+    }
+    .st-expander .streamlit-expanderContent {
+        padding: 15px;
+    }
+    
+    /* Dataframe styling */
+    .stDataFrame {
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    /* Input field styling */
+    .stTextInput>div>div>input, 
+    .stNumberInput>div>div>input,
+    .stSelectbox>div>div>select {
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
+        padding: 10px 12px;
+    }
+    .stTextInput>div>div>input:focus, 
+    .stNumberInput>div>div>input:focus,
+    .stSelectbox>div>div>select:focus {
+        border-color: #4CAF50;
+        box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+    }
+    
+    /* Tab styling */
+    .stTabs [role="tablist"] {
+        border-bottom: 2px solid #e0e0e0;
+    }
+    .stTabs [role="tab"] {
+        color: #666;
+        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: 8px 8px 0 0;
+        margin-right: 5px;
+    }
+    .stTabs [role="tab"][aria-selected="true"] {
+        color: #4CAF50;
+        border-bottom: 3px solid #4CAF50;
+        background-color: rgba(76, 175, 80, 0.1);
+    }
+    .stTabs [role="tab"]:hover {
+        color: #2E7D32;
+        background-color: rgba(76, 175, 80, 0.05);
+    }
+    
+    /* Metric styling */
+    .stMetric {
+        background: white;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        border-left: 4px solid #4CAF50;
+    }
+    .stMetric label {
+        font-weight: 600;
+        color: #555;
+    }
+    .stMetric value {
+        font-weight: 700;
+        color: #2c3e50;
+    }
+    
+    /* Progress bar styling */
+    .stProgress>div>div>div {
+        background-color: #4CAF50;
+    }
+    
+    /* Spinner styling */
+    .stSpinner>div {
+        border-color: #4CAF50 transparent transparent transparent;
+    }
+    
+    /* Success/error message styling */
+    .stAlert {
+        border-radius: 8px;
+    }
+    .stAlert.success {
+        background-color: rgba(76, 175, 80, 0.1);
+        border-left: 4px solid #4CAF50;
+    }
+    .stAlert.error {
+        background-color: rgba(244, 67, 54, 0.1);
+        border-left: 4px solid #f44336;
+    }
+    .stAlert.warning {
+        background-color: rgba(255, 193, 7, 0.1);
+        border-left: 4px solid #ffc107;
+    }
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+    
+    /* Custom tooltip */
+    .stTooltip {
+        background-color: #2c3e50 !important;
+        color: white !important;
+        border-radius: 6px !important;
+        padding: 8px 12px !important;
+        font-size: 14px !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+    }
+    
+    /* Custom hr styling */
+    hr {
+        border: 0;
+        height: 1px;
+        background-image: linear-gradient(to right, rgba(0,0,0,0), rgba(76, 175, 80, 0.75), rgba(0,0,0,0));
+        margin: 25px 0;
+    }
+    
+    /* Custom download button styling */
+    .stDownloadButton>button {
+        background: linear-gradient(to right, #2196F3, #1976D2);
+        color: white;
         font-weight: bold;
-        margin-bottom: 15px;
+        border-radius: 8px;
+        padding: 0.8rem 1.5rem;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        font-size: 1rem;
+        width: 100%;
+    }
+    .stDownloadButton>button:hover {
+        background: linear-gradient(to right, #1E88E5, #1565C0);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 8px rgba(0,0,0,0.15);
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Footer ---
+# --- Enhanced Footer ---
 st.markdown("""
 <div class="footer">
-    Made with ❤️ by Geabral Mulugeta | Options Profit & Capital Advisor
+    Made with ❤️ by Geabral Mulugeta | Options Profit & Capital Advisor | 
+    <a href="https://github.com/yourusername" target="_blank">GitHub</a> | 
+    <a href="https://linkedin.com/in/yourprofile" target="_blank">LinkedIn</a>
 </div>
 """, unsafe_allow_html=True)
+
+# [Rest of your existing code remains exactly the same...]
+# The sector ETFs map, pricing models functions, Greeks calculations, 
+# implied volatility, market data functions, volatility analysis, 
+# reporting functions, and the main() function all stay unchanged.
 
 # --- Sector ETFs ---
 SECTOR_MAP = {
