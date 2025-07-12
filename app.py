@@ -579,78 +579,165 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 
-def plot_stock_volume(ticker):
-    """Plot 30-day stock trading volume as a high-resolution cyberpunk-style line chart"""
+def plot_stock_volume(ticker, lookback_days=30):
+    """
+    Plot stock trading volume with cyberpunk styling and enhanced analytics
+    
+    Parameters:
+        ticker (str): Stock ticker symbol
+        lookback_days (int): Number of days to display (default: 30)
+    
+    Returns:
+        plotly.graph_objs.Figure: Interactive volume chart
+    """
     try:
-        # Force fetch last 30 days of data
+        # Fetch stock data with forced refresh
         stock_data = yf.download(
             ticker,
-            period="30d",
+            period=f"{lookback_days}d",
             interval="1d",
-            progress=False
+            progress=False,
+            group_by='ticker'
         )
-
+        
         if stock_data.empty or 'Volume' not in stock_data.columns:
             st.warning(f"⚠️ No volume data available for {ticker}")
             return None
 
+        # Calculate metrics
         volume = stock_data['Volume']
-        avg_volume = float(volume.mean())
-
+        avg_volume = volume.mean()
+        current_volume = volume.iloc[-1]
+        volume_ratio = current_volume / avg_volume
+        
+        # Create figure
         fig = go.Figure()
-
-        # Add volume line
-        fig.add_trace(go.Scatter(
+        
+        # Add volume bars with gradient coloring
+        fig.add_trace(go.Bar(
             x=stock_data.index,
             y=volume,
-            mode='lines',
             name='Volume',
-            line=dict(color='#00FFFF', width=2),
-            hovertemplate="<b>Date:</b> %{x|%Y-%m-%d}<br><b>Volume:</b> %{y:,} shares<extra></extra>",
-            fill='tozeroy',
-            fillcolor='rgba(0, 255, 255, 0.15)'
-        ))
-
-        # Add average line
-        fig.add_hline(
-            y=avg_volume,
-            line_dash="dot",
-            line_color="#FF00FF",
-            annotation_text=f"Avg: {avg_volume:,.0f}",
-            annotation_position="top right",
-            annotation_font_color="#00FF00"
+            marker=dict(
+                color=volume,
+                colorscale='teal',
+                showscale=False,
+                line=dict(width=0)
+            ),
+            hovertemplate="<b>Date:</b> %{x|%b %d}<br>" +
+                         "<b>Volume:</b> %{y:,}<br>" +
+                         "<b>Avg:</b> %{text:,}<extra></extra>",
+            text=[f"{avg_volume:,.0f}"] * len(volume)
         )
-
+        
+        # Add moving averages
+        for window in [5, 20]:
+            if len(volume) >= window:
+                ma = volume.rolling(window=window).mean()
+                fig.add_trace(go.Scatter(
+                    x=stock_data.index,
+                    y=ma,
+                    name=f'{window}-Day MA',
+                    line=dict(
+                        width=2,
+                        color='#FF00FF' if window == 5 else '#00FF00'
+                    ),
+                    hovertemplate=f"<b>{window}-Day MA:</b> %{{y:,.0f}}<extra></extra>"
+                ))
+        
+        # Add current volume indicator
+        fig.add_annotation(
+            x=stock_data.index[-1],
+            y=current_volume,
+            text=f"Current: {current_volume:,.0f}<br>({volume_ratio:.1f}x avg)",
+            showarrow=True,
+            arrowhead=1,
+            ax=-40,
+            ay=-40,
+            bgcolor='rgba(10,10,20,0.8)',
+            bordercolor='#00FFFF',
+            borderwidth=1,
+            font=dict(color='#00FF00')
+        
+        # Add volume ratio indicator
+        fig.add_shape(
+            type="line",
+            x0=stock_data.index[0],
+            x1=stock_data.index[-1],
+            y0=avg_volume,
+            y1=avg_volume,
+            line=dict(
+                color="#FF00FF",
+                width=2,
+                dash="dot"
+            )
+        )
+        
+        # Cyberpunk styling
         fig.update_layout(
             title={
-                'text': f"<b>{ticker.upper()} - 30-DAY TRADING VOLUME</b>",
-                'font': {'color': '#00FF00', 'size': 20},
-                'x': 0.5
+                'text': f"<b>{ticker.upper()} VOLUME ANALYSIS</b>",
+                'y':0.95,
+                'x':0.5,
+                'xanchor': 'center',
+                'yanchor': 'top',
+                'font': {
+                    'size': 20,
+                    'color': '#00FF00'
+                }
             },
             xaxis=dict(
                 title="Date",
-                showgrid=True,
-                gridcolor='rgba(0,255,255,0.2)',
-                title_font=dict(color='#00FFFF', size=14)
+                gridcolor='rgba(0,255,255,0.1)',
+                title_font=dict(color='#00FFFF'),
+                tickfont=dict(color='#00FFFF')
             ),
             yaxis=dict(
                 title="Volume (Shares)",
-                showgrid=True,
-                gridcolor='rgba(0,255,255,0.2)',
-                title_font=dict(color='#00FFFF', size=14),
-                tickformat="~s"
+                gridcolor='rgba(0,255,255,0.1)',
+                title_font=dict(color='#00FFFF'),
+                tickfont=dict(color='#00FFFF'),
+                tickformat=","
             ),
-            hovermode="x unified",
-            template="plotly_dark",
-            plot_bgcolor='rgba(10,10,30,0.5)',
+            hoverlabel=dict(
+                bgcolor='rgba(5,5,15,0.8)',
+                bordercolor='#00FFFF',
+                font=dict(color='#00FF00')
+            ),
+            plot_bgcolor='rgba(5,5,15,0.7)',
             paper_bgcolor='rgba(5,5,15,0.7)',
-            margin=dict(l=50, r=50, b=50, t=80)
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+                font=dict(color='#00FFFF')
+            ),
+            margin=dict(l=50, r=50, b=50, t=90),
+            height=500
         )
-
+        
+        # Add cyberpunk-style annotations
+        fig.add_annotation(
+            xref="paper",
+            yref="paper",
+            x=0.01,
+            y=0.98,
+            text=f"VOLUME ANALYSIS | {lookback_days} DAYS",
+            showarrow=False,
+            font=dict(
+                size=12,
+                color="#00FFFF"
+            ),
+            bgcolor="rgba(0,0,0,0.5)",
+            bordercolor="#00FFFF"
+        )
+        
         return fig
-
+        
     except Exception as e:
-        st.error(f"❌ ERROR PLOTTING VOLUME: {str(e)}")
+        st.error(f"❌ ERROR IN VOLUME PLOT: {str(e)}")
         return None
 
 
