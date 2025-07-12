@@ -14,13 +14,8 @@ import requests
 from bs4 import BeautifulSoup
 from io import StringIO
 from plotly.subplots import make_subplots
+import traceback
 
-# --- Extensive Custom CSS for styling ---
-# --- EXTREME CSS STYLING ---
-# --- ULTRA CYBERPUNK CSS STYLING ---
-# --- Enhanced Cyberpunk CSS with Better Layout ---
-# --- ULTRA CYBERPUNK CSS WITH WIDER CHARTS ---
-# --- ENHANCED CYBERPUNK CSS WITH BALANCED LAYOUT ---
 # --- ULTRA CYBERPUNK NEON STYLING ---
 st.markdown("""
 <style>
@@ -404,6 +399,7 @@ st.markdown("""
     </div>
 </div>
 """, unsafe_allow_html=True)
+
 SECTOR_MAP = {
     "technology": ["XLK", "VGT", "QTEC"],
     "financial": ["XLF", "VFH", "IYF"],
@@ -512,15 +508,16 @@ def implied_volatility(option_market_price, S, K, T, r, option_type="call", tol=
 # --- Market Data Functions ---
 def get_option_market_price(ticker, option_type, strike, expiry_date):
     """Fetch current market price for given option"""
-    stock = yf.Ticker(ticker)
     try:
+        stock = yf.Ticker(ticker)
         if expiry_date not in stock.options:
             return None
         opt_chain = stock.option_chain(expiry_date)
         options = opt_chain.calls if option_type == "call" else opt_chain.puts
         row = options[options['strike'] == strike]
         return None if row.empty else float(row.iloc[0]['lastPrice'])
-    except:
+    except Exception as e:
+        st.error(f"Error fetching option market price: {e}")
         return None
 
 def get_us_10yr_treasury_yield():
@@ -541,7 +538,8 @@ def get_us_10yr_treasury_yield():
 
         latest_yield_str = df["10 Yr"].iloc[-1]
         return float(latest_yield_str) / 100
-    except Exception:
+    except Exception as e:
+        st.warning(f"Using fallback treasury yield: {e}")
         return fallback_yield
 
 # --- Volatility Analysis ---
@@ -556,92 +554,49 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     except Exception as e:
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
+
 def plot_stock_volume(ticker, days_to_expiry):
-    """Plot stock/ETF trading volume - handles both simple and MultiIndex DataFrames"""
+    """Plot stock/ETF trading volume"""
     try:
-        # 1. Fetch data with multiple fallback attempts
-        stock_data = None
-        fetch_attempts = [
-            {'auto_adjust': True, 'actions': False},
-            {'auto_adjust': False, 'actions': False},
-            {'auto_adjust': True, 'actions': True},
-            {'auto_adjust': False, 'actions': True}
-        ]
+        stock_data = yf.download(
+            ticker,
+            period=f"{min(days_to_expiry, 365)}d",
+            progress=False
+        )
         
-        for attempt in fetch_attempts:
-            try:
-                stock_data = yf.download(
-                    ticker,
-                    period=f"{min(days_to_expiry, 365)}d",
-                    progress=False,
-                    **attempt
-                )
-                if isinstance(stock_data, pd.DataFrame) and not stock_data.empty:
-                    break
-            except:
-                continue
-
-        # 2. Validate data structure
-        if not isinstance(stock_data, pd.DataFrame) or stock_data.empty:
-            st.warning(f"⚠️ No market data available for {ticker}")
+        if stock_data.empty:
+            st.warning(f"No volume data available for {ticker}")
             return None
 
-        # 3. Find volume column (handles both regular and MultiIndex columns)
-        volume_col = None
-        for col in stock_data.columns:
-            # Case 1: Simple string column name (e.g., 'Volume')
-            if isinstance(col, str) and 'volume' in col.lower():
-                volume_col = col
-                break
-            # Case 2: MultiIndex tuple column (e.g., ('Volume', 'SPY'))
-            elif isinstance(col, tuple) and any('volume' in str(s).lower() for s in col):
-                volume_col = col
-                break
-
-        if not volume_col:
-            st.warning(f"📊 Volume data missing for {ticker} (Available columns: {stock_data.columns.tolist()})")
-            return None
-
-        # 4. Clean data
-        clean_data = stock_data[[volume_col]].dropna()
-        if clean_data.empty:
-            st.warning(f"🧹 No valid volume data after cleaning for {ticker}")
-            return None
-
-        # 5. Create plot
         fig = go.Figure()
         fig.add_trace(go.Bar(
-            x=clean_data.index,
-            y=clean_data[volume_col],
+            x=stock_data.index,
+            y=stock_data['Volume'],
             marker_color='#1f77b4',
             hovertemplate="<b>Date</b>: %{x|%b %d}<br><b>Volume</b>: %{y:,}<extra></extra>"
         ))
         
-        # Add average line if we have valid data
-        try:
-            avg_volume = clean_data[volume_col].mean()
-            fig.add_shape(
-                type="line",
-                x0=clean_data.index[0],
-                x1=clean_data.index[-1],
-                y0=avg_volume,
-                y1=avg_volume,
-                line=dict(color='#ff7f0e', dash='dot')
-            )
-            fig.add_annotation(
-                x=clean_data.index[-1],
-                y=avg_volume,
-                text=f"Avg: {avg_volume:,.0f}",
-                showarrow=False,
-                xanchor='right',
-                yanchor='bottom',
-                font=dict(color="#ff7f0e")
-            )
-        except:
-            pass
+        avg_volume = stock_data['Volume'].mean()
+        fig.add_shape(
+            type="line",
+            x0=stock_data.index[0],
+            x1=stock_data.index[-1],
+            y0=avg_volume,
+            y1=avg_volume,
+            line=dict(color='#ff7f0e', dash='dot')
+        )
+        fig.add_annotation(
+            x=stock_data.index[-1],
+            y=avg_volume,
+            text=f"Avg: {avg_volume:,.0f}",
+            showarrow=False,
+            xanchor='right',
+            yanchor='bottom',
+            font=dict(color="#ff7f0e")
+        )
         
         fig.update_layout(
-            title=f"<b>{ticker} Volume</b> | Last {len(clean_data)} Trading Days",
+            title=f"<b>{ticker} Volume</b> | Last {len(stock_data)} Trading Days",
             yaxis_title="Shares Traded",
             template="plotly_white",
             hovermode="x unified"
@@ -650,7 +605,7 @@ def plot_stock_volume(ticker, days_to_expiry):
         return fig
 
     except Exception as e:
-        st.error(f"❌ Error processing {ticker}: {str(e)}")
+        st.error(f"Error plotting volume: {e}")
         return None
 
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
@@ -773,10 +728,8 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     pdf.cell(200, 10, "Trading Advice", ln=True)
     pdf.set_font("Arial", size=12)
     for _, row in trading_advice.iterrows():
-        # Handle special characters in advice
-        text = f"{row['Advice']}: {row['Reason']}"
         try:
-            pdf.multi_cell(200, 10, text.encode('latin-1', 'replace').decode('latin-1'))
+            pdf.multi_cell(200, 10, f"{row['Advice']}: {row['Reason']}")
         except:
             pdf.multi_cell(200, 10, "Trading advice (special characters omitted)")
 
@@ -784,15 +737,7 @@ def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     pdf.set_font("Arial", 'I', size=10)
     pdf.cell(200, 10, "Note: Interactive plots are available in the web interface", ln=True)
 
-    # Save to bytes with error handling
-    try:
-        return pdf.output(dest='S').encode('latin-1', 'replace')
-    except:
-        try:
-            return pdf.output(dest='S').encode('utf-8')
-        except Exception as e:
-            st.error(f"PDF generation error: {str(e)}")
-            return None
+    return pdf.output(dest='S').encode('latin-1')
 
 def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital):
     """Generate personalized trading advice based on analysis"""
@@ -832,7 +777,37 @@ def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comf
         "Reason": reasons
     })
 
-# --- Streamlit UI ---
+# --- Company Financials ---
+def get_company_financials(ticker):
+    """Fetch and display key financial metrics for a stock"""
+    try:
+        company = yf.Ticker(ticker)
+        
+        # Check if this is actually a stock (has financials)
+        if not company.info:
+            return False, None
+        
+        # Get key financial data
+        financials = {
+            'Company Name': company.info.get('longName', 'N/A'),
+            'Sector': company.info.get('sector', 'N/A'),
+            'Industry': company.info.get('industry', 'N/A'),
+            'Market Cap': f"${company.info.get('marketCap', 0)/1e9:.2f}B" if company.info.get('marketCap') else 'N/A',
+            'P/E Ratio': company.info.get('trailingPE', 'N/A'),
+            'EPS': company.info.get('trailingEps', 'N/A'),
+            'Dividend Yield': f"{company.info.get('dividendYield', 0)*100:.2f}%" if company.info.get('dividendYield') else '0%',
+            '52 Week High': f"${company.info.get('fiftyTwoWeekHigh', 'N/A')}",
+            '52 Week Low': f"${company.info.get('fiftyTwoWeekLow', 'N/A')}",
+            'Beta': company.info.get('beta', 'N/A')
+        }
+        
+        return True, pd.DataFrame.from_dict(financials, orient='index', columns=['Value'])
+    
+    except Exception as e:
+        st.error(f"Error fetching financial data: {e}")
+        return False, None
+
+# --- Main Streamlit App ---
 def main():
     st.title("Options Profit & Capital Advisor")
 
@@ -859,6 +834,10 @@ def main():
         st.session_state.iv_percentile = None
     if "volume_fig" not in st.session_state:
         st.session_state.volume_fig = None
+    if "is_stock" not in st.session_state:
+        st.session_state.is_stock = None
+    if "financials_df" not in st.session_state:
+        st.session_state.financials_df = None
 
     # Input widgets
     st.markdown("### Input Parameters")
@@ -879,6 +858,18 @@ def main():
             max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
             min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
             pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
+
+    # Check if ticker is a stock and get financials
+    if ticker:
+        is_stock, financials_df = get_company_financials(ticker)
+        st.session_state.is_stock = is_stock
+        st.session_state.financials_df = financials_df
+        
+        if not is_stock:
+            st.warning(f"⚠️ {ticker} does not appear to be a stock. This tool works best with individual stocks.")
+        elif financials_df is not None:
+            with st.expander("View Company Financials", expanded=True):
+                st.dataframe(financials_df, use_container_width=True)
 
     # Calculation button
     st.markdown("---")
@@ -909,7 +900,9 @@ def main():
                     risk_free_rate = live_rate
 
                 T = days_to_expiry / 365
-                stock_data = yf.Ticker(ticker).history(period="1d")
+                stock = yf.Ticker(ticker)
+                stock_data = stock.history(period="1d")
+                
                 if stock_data.empty:
                     st.error("Could not fetch stock data. Please check the ticker symbol.")
                     st.session_state.calculation_done = False
@@ -918,30 +911,40 @@ def main():
                 S = float(stock_data["Close"].iloc[-1])
 
                 # Find closest expiry date
-                options_expiries = yf.Ticker(ticker).options
-                expiry_date = None
-                for date in options_expiries:
-                    dt = datetime.strptime(date, "%Y-%m-%d")
-                    diff_days = abs((dt - datetime.now()).days - days_to_expiry)
-                    if diff_days <= 5:
-                        expiry_date = date
-                        break
+                try:
+                    options_expiries = stock.options
+                    if not options_expiries:
+                        st.error("No option expiry dates available for this ticker.")
+                        st.session_state.calculation_done = False
+                        return
+                    
+                    expiry_date = None
+                    for date in options_expiries:
+                        dt = datetime.strptime(date, "%Y-%m-%d")
+                        diff_days = abs((dt - datetime.now()).days - days_to_expiry)
+                        if diff_days <= 5:
+                            expiry_date = date
+                            break
 
-                if expiry_date is None:
-                    st.error("No matching expiry date found near the specified days to expiry.")
+                    if expiry_date is None:
+                        st.error("No matching expiry date found near the specified days to expiry.")
+                        st.session_state.calculation_done = False
+                        return
+                except Exception as e:
+                    st.error(f"Error fetching option dates: {e}")
                     st.session_state.calculation_done = False
                     return
 
                 # Get market price and implied volatility
                 price_market = get_option_market_price(ticker, option_type, strike_price, expiry_date)
                 if price_market is None:
-                    st.error("Failed to fetch option market price. Try a closer-to-the-money strike.")
+                    st.error("Failed to fetch option market price. Try a different strike or expiry.")
                     st.session_state.calculation_done = False
                     return
 
                 iv = implied_volatility(price_market, S, strike_price, T, risk_free_rate, option_type)
                 if iv is None:
-                    st.error("Could not compute implied volatility. Try a closer-to-the-money strike.")
+                    st.error("Could not compute implied volatility. Try a different strike.")
                     st.session_state.calculation_done = False
                     return
 
@@ -975,21 +978,27 @@ def main():
                 # Sector analysis
                 etfs = SECTOR_MAP.get(sector, [])
                 symbols = [ticker] + etfs
-                df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
+                try:
+                    df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
+                    
+                    if return_type == "Log":
+                        returns = (df / df.shift(1)).apply(np.log).dropna()
+                    else:
+                        returns = df.pct_change().dropna()
 
-                if return_type == "Log":
-                    returns = (df / df.shift(1)).apply(np.log).dropna()
-                else:
-                    returns = df.pct_change().dropna()
+                    # Z-score calculation
+                    window = 20
+                    zscore = ((df[ticker] - df[ticker].rolling(window).mean()) / df[ticker].rolling(window).std()).dropna()
+                    latest_z = float(zscore.iloc[-1]) if not zscore.empty else 0
 
-                # Z-score calculation
-                window = 20
-                zscore = ((df[ticker] - df[ticker].rolling(window).mean()) / df[ticker].rolling(window).std()).dropna()
-                latest_z = float(zscore.iloc[-1]) if not zscore.empty else 0
-
-                # Correlation analysis
-                correlation = float(returns.corr().loc[ticker].drop(ticker).mean())
-                iv_divergences = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
+                    # Correlation analysis
+                    correlation = float(returns.corr().loc[ticker].drop(ticker).mean())
+                    iv_divergences = {etf: iv - 0.2 for etf in df.columns if etf != ticker}
+                except Exception as e:
+                    st.warning(f"Sector analysis incomplete: {e}")
+                    latest_z = 0
+                    correlation = 0.5
+                    iv_divergences = {}
 
                 # Capital adjustment logic
                 capital = comfortable_capital
@@ -1133,6 +1142,7 @@ def main():
 
             except Exception as e:
                 st.error(f"Calculation failed: {str(e)}")
+                st.error(traceback.format_exc())
                 st.session_state.calculation_done = False
 
     # Display results if calculation is done
@@ -1199,111 +1209,6 @@ def main():
                     file_name="options_analysis_report.pdf",
                     mime="application/pdf"
                 )
-
-# Add this function near the other data functions
-def get_company_financials(ticker):
-    """Fetch and display key financial metrics for a stock"""
-    try:
-        company = yf.Ticker(ticker)
-        
-        # Check if this is actually a stock (has financials)
-        if not company.info:
-            return False, None
-        
-        # Get key financial data
-        financials = {
-            'Company Name': company.info.get('longName', 'N/A'),
-            'Sector': company.info.get('sector', 'N/A'),
-            'Industry': company.info.get('industry', 'N/A'),
-            'Market Cap': f"${company.info.get('marketCap', 0)/1e9:.2f}B" if company.info.get('marketCap') else 'N/A',
-            'P/E Ratio': company.info.get('trailingPE', 'N/A'),
-            'EPS': company.info.get('trailingEps', 'N/A'),
-            'Dividend Yield': f"{company.info.get('dividendYield', 0)*100:.2f}%" if company.info.get('dividendYield') else '0%',
-            '52 Week High': f"${company.info.get('fiftyTwoWeekHigh', 'N/A')}",
-            '52 Week Low': f"${company.info.get('fiftyTwoWeekLow', 'N/A')}",
-            'Beta': company.info.get('beta', 'N/A')
-        }
-        
-        return True, pd.DataFrame.from_dict(financials, orient='index', columns=['Value'])
-    
-    except Exception as e:
-        st.error(f"Error fetching financial data: {e}")
-        return False, None
-
-# Modify the main function to include financials display
-def main():
-    st.title("Options Profit & Capital Advisor")
-
-    # Initialize session state variables
-    if "calculation_done" not in st.session_state:
-        st.session_state.calculation_done = False
-    if "export_csv" not in st.session_state:
-        st.session_state.export_csv = None
-    if "export_pdf" not in st.session_state:
-        st.session_state.export_pdf = None
-    if "greeks_df" not in st.session_state:
-        st.session_state.greeks_df = None
-    if "summary_info" not in st.session_state:
-        st.session_state.summary_info = None
-    if "plot_fig" not in st.session_state:
-        st.session_state.plot_fig = None
-    if "input_data" not in st.session_state:
-        st.session_state.input_data = None
-    if "trading_advice" not in st.session_state:
-        st.session_state.trading_advice = None
-    if "bs_sensitivities_fig" not in st.session_state:
-        st.session_state.bs_sensitivities_fig = None
-    if "iv_percentile" not in st.session_state:
-        st.session_state.iv_percentile = None
-    if "volume_fig" not in st.session_state:
-        st.session_state.volume_fig = None
-    if "is_stock" not in st.session_state:
-        st.session_state.is_stock = None
-    if "financials_df" not in st.session_state:
-        st.session_state.financials_df = None
-
-    # Input widgets
-    st.markdown("### Input Parameters")
-    with st.expander("Configure your option trade"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
-            option_type = st.selectbox("Option Type", ["call", "put"])
-            strike_price = st.number_input("Strike Price", min_value=0.0, value=150.0)
-            days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
-            risk_free_rate = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=0.025)
-            sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
-            
-        with col2:
-            return_type = st.selectbox("Return Type", ["Simple", "Log"])
-            comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
-            max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
-            min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
-            pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
-
-    # Check if ticker is a stock and get financials
-    if ticker:
-        is_stock, financials_df = get_company_financials(ticker)
-        st.session_state.is_stock = is_stock
-        st.session_state.financials_df = financials_df
-        
-        if not is_stock:
-            st.warning(f"⚠️ {ticker} does not appear to be a stock. This tool works best with individual stocks, not ETFs, indices, or cryptocurrencies.")
-        else:
-            with st.expander("View Company Financials", expanded=True):
-                st.dataframe(financials_df, use_container_width=True)
-
-    # Calculation button (only show if it's a stock)
-    st.markdown("---")
-    if st.session_state.is_stock is not False:
-        calculate_clicked = st.button("Calculate Profit & Advice", key="calculate")
-    else:
-        st.error("Please enter a valid stock ticker to proceed with calculations")
-        calculate_clicked = False
-
-    # Rest of your existing main() function continues here...
-    # [Keep all the existing calculation and display code]
 
 if __name__ == "__main__":
     main()
