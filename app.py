@@ -677,7 +677,7 @@ def plot_stock_volume(ticker, days=30):
                 gridcolor='rgba(0,255,255,0.1)',
                 title_font=dict(color='#00FFFF'),
                 tickfont=dict(color='#00FFFF'),
-                tickformat=","
+                tickformat=",d"  # Changed from "," to ",d" for proper formatting
             ),
             hoverlabel=dict(
                 bgcolor='rgba(0,5,10,0.8)',
@@ -694,8 +694,6 @@ def plot_stock_volume(ticker, days=30):
     except Exception as e:
         st.error(f"❌ Failed to generate volume plot for {ticker}: {str(e)}")
         return None
-
-
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
