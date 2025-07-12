@@ -625,7 +625,7 @@ def plot_stock_volume(ticker, days=30):
                 cmin=volume.min(),
                 cmax=volume.max(),
                 line=dict(width=0)
-        ))
+                         )))
 
         # 20-day moving average
         fig.add_trace(go.Scatter(
