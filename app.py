@@ -578,60 +578,7 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     except Exception as e:
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
-def plot_stock_volume(ticker, days=30):
-    try:
-        # ... [data fetching and validation remains the same] ...
 
-        # Convert dates to proper datetime and extract short month-day format
-        dates = pd.to_datetime(volume.index)
-        date_labels = [d.strftime("%b %d") for d in dates]  # "Jun 08", "Jun 15", etc.
-
-        fig = go.Figure()
-
-        # Add volume bars
-        fig.add_trace(go.Bar(
-            x=dates,
-            y=volume_values,
-            name='Volume',
-            marker=dict(color=volume_values, colorscale='tealrose', 
-                       cmin=float(volume.min()), cmax=float(volume.max())),
-            hovertemplate="<b>%{x|%b %d}</b><br>%{y:.2s} shares<extra></extra>"
-        ))
-
-        # Add moving average
-        fig.add_trace(go.Scatter(
-            x=ma20_dates,
-            y=ma20_values,
-            name='20-Day MA',
-            line=dict(color='#FF00FF', width=3),
-            hovertemplate="20-Day MA: %{y:.2s}<extra></extra>"
-        ))
-
-        # Update layout with fixed date formatting
-        fig.update_layout(
-            xaxis=dict(
-                tickmode='array',
-                tickvals=dates,
-                ticktext=date_labels,  # Use formatted labels
-                gridcolor='rgba(0,255,255,0.2)',
-                title_font=dict(color='cyan'),
-                tickfont=dict(color='cyan')
-            ),
-            yaxis=dict(
-                title="Shares Traded (Millions)",
-                tickformat=".2s",  # Formats as "35M", "40M", etc.
-                gridcolor='rgba(0,255,255,0.2)',
-                title_font=dict(color='cyan'),
-                tickfont=dict(color='cyan')
-            ),
-            # ... [rest of the layout styling] ...
-        )
-
-        return fig
-
-    except Exception as e:
-        st.error(f"❌ Volume plot failed: {str(e)}")
-        return None
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
