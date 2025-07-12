@@ -606,7 +606,7 @@ def plot_stock_volume(ticker, days_to_expiry):
         ))
         
         # Add average line
-        avg_volume = stock_data['Volume'].mean()
+        avg_volume = float(stock_data['Volume'].mean())  # Ensure it's a scalar
         fig.add_hline(
             y=avg_volume,
             line_dash="dot",
@@ -635,6 +635,7 @@ def plot_stock_volume(ticker, days_to_expiry):
     except Exception as e:
         st.error(f"❌ Error plotting volume for {ticker}: {str(e)}")
         return None
+
 
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
