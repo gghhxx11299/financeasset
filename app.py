@@ -599,36 +599,39 @@ def plot_stock_volume(ticker, days=30):
             st.warning(f"⚠️ Insufficient data (only {len(volume)} trading days)")
             return None
 
-        avg_volume = volume.mean()
-        current_volume = volume.iloc[-1]
-        ma20 = volume.rolling(20).mean().dropna()
+        # Convert to numpy arrays to avoid Series formatting issues
+        dates = volume.index
+        volume_values = volume.values
+        avg_volume = float(volume.mean())
+        current_volume = float(volume.iloc[-1])
+        ma20_values = volume.rolling(20).mean().dropna().values
 
         fig = go.Figure()
 
         fig.add_trace(go.Bar(
-            x=volume.index,
-            y=volume,
+            x=dates,
+            y=volume_values,  # Using numpy array
             name='Volume',
             marker=dict(
-                color=volume.values,  # <-- fix here
+                color=volume_values,
                 colorscale='tealrose',
                 cmin=float(volume.min()),
                 cmax=float(volume.max()),
                 line=dict(width=0)
             ),
-            hovertemplate="<b>%{x|%b %d}</b><br>%{y:,} shares<extra></extra>"
+            hovertemplate="<b>%{x|%b %d}</b><br>%{y:,.0f} shares<extra></extra>"
         ))
 
         fig.add_trace(go.Scatter(
-            x=ma20.index,
-            y=ma20,
+            x=dates[-len(ma20_values):],  # Align with MA values
+            y=ma20_values,
             name='20-Day MA',
             line=dict(color='#FF00FF', width=3),
-            hovertemplate="20-Day MA: %{y:,}<extra></extra>"
+            hovertemplate="20-Day MA: %{y:,.0f}<extra></extra>"
         ))
 
         fig.add_annotation(
-            x=volume.index[-1],
+            x=dates[-1],
             y=current_volume,
             text=f"Current: {current_volume / 1e6:.1f}M",
             showarrow=True,
@@ -658,7 +661,7 @@ def plot_stock_volume(ticker, days=30):
             yaxis=dict(
                 title="Shares Traded",
                 gridcolor='rgba(0,255,255,0.2)',
-                tickformat=".3s",
+                tickformat=".3s",  # Plotly's built-in formatting
                 title_font=dict(color='cyan'),
                 tickfont=dict(color='cyan')
             ),
@@ -684,7 +687,6 @@ def plot_stock_volume(ticker, days=30):
     except Exception as e:
         st.error(f"❌ Volume plot failed: {str(e)}")
         return None
-
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
