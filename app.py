@@ -521,8 +521,7 @@ def get_option_market_price(ticker, option_type, strike, expiry_date):
         return None
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
-def get_us_10yr_treasury_yield():
-    # ... existing code ...
+
 def get_us_10yr_treasury_yield():
     """Fetch current 10-year Treasury yield with multiple fallback options"""
     fallback_yield = 0.025  # Default fallback 2.5%
