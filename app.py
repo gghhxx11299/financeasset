@@ -656,7 +656,7 @@ def plot_stock_volume(ticker, days=30):
             y=avg_volume,
             line_dash="dot",
             line_color="#00FFFF",
-            annotation_text=f"Avg: {avg_volume:,.0f}",
+            annotation_text=f"Avg: {avg_volume/1e6:.1f}M",
             annotation_position="top right",
             annotation_font_color="#00FF00"
         )
@@ -673,11 +673,12 @@ def plot_stock_volume(ticker, days=30):
                 tickfont=dict(color='#00FFFF')
             ),
             yaxis=dict(
-                title="Volume (Shares)",
+                title="Volume (Millions)",
                 gridcolor='rgba(0,255,255,0.1)',
                 title_font=dict(color='#00FFFF'),
                 tickfont=dict(color='#00FFFF'),
-                tickformat=",d"  # Changed from "," to ",d" for proper formatting
+                tickformat=".0f",  # Simplified format
+                separatethousands=True  # This will add thousands separators
             ),
             hoverlabel=dict(
                 bgcolor='rgba(0,5,10,0.8)',
