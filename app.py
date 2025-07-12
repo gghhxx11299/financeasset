@@ -604,28 +604,31 @@ def plot_stock_volume(ticker, lookback_days=30):
                     threads=True
                 )
 
-                # Check if MultiIndex and extract correct level
-                if isinstance(stock_data.columns, pd.MultiIndex):
-                    if ticker in stock_data.columns.get_level_values(0):
-                        stock_data = stock_data[ticker]
-
-                if not stock_data.empty:
+                # Check if we got valid data
+                if stock_data is not None and not stock_data.empty:
                     break
             except Exception as e:
                 if attempt == max_retries - 1:
                     raise e
                 time.sleep(1.5)  # Wait before retry
 
+        # Validate we have usable data
         if stock_data is None or stock_data.empty or 'Volume' not in stock_data.columns:
             st.warning(f"⚠️ Could not retrieve usable volume data for {ticker}")
             return None
 
-        # Clean and prepare volume data
-        volume = stock_data['Volume'].replace(0, np.nan).dropna()
+        # Extract volume series
+        volume = stock_data['Volume'].copy()
+        
+        # Replace zeros with NaN and drop them
+        volume.replace(0, np.nan, inplace=True)
+        volume.dropna(inplace=True)
+        
         if volume.empty:
             st.warning(f"⚠️ No valid volume values for {ticker}")
             return None
 
+        # Calculate metrics
         avg_volume = volume.mean()
         current_volume = volume.iloc[-1]
         volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
@@ -648,17 +651,18 @@ def plot_stock_volume(ticker, lookback_days=30):
                           "<b>Volume:</b> %{y:,} shares<extra></extra>"
         ))
 
-        # Add moving averages
-        for window, color in [(5, '#FF00FF'), (20, '#00FF00')]:
-            if len(volume) >= window:
-                ma = volume.rolling(window=window).mean()
-                fig.add_trace(go.Scatter(
-                    x=ma.index,
-                    y=ma,
-                    name=f'{window}-Day MA',
-                    line=dict(width=2, color=color),
-                    hovertemplate=f"<b>{window}-Day MA:</b> %{{y:,.0f}}<extra></extra>"
-                ))
+        # Add moving averages if we have enough data
+        if len(volume) >= 5:
+            for window, color in [(5, '#FF00FF'), (20, '#00FF00')]:
+                if len(volume) >= window:
+                    ma = volume.rolling(window=window).mean()
+                    fig.add_trace(go.Scatter(
+                        x=ma.index,
+                        y=ma,
+                        name=f'{window}-Day MA',
+                        line=dict(width=2, color=color),
+                        hovertemplate=f"<b>{window}-Day MA:</b> %{{y:,.0f}}<extra></extra>"
+                    ))
 
         # Horizontal average line
         fig.add_hline(
@@ -666,7 +670,8 @@ def plot_stock_volume(ticker, lookback_days=30):
             line_dash="dot",
             line_color="#FF00FF",
             annotation_text=f"Avg: {avg_volume:,.0f}",
-            annotation_position="top right"
+            annotation_position="top right",
+            annotation_font=dict(color='#00FF00')
         )
 
         # Annotate latest volume
