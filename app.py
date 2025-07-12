@@ -584,17 +584,15 @@ def plot_stock_volume(ticker, days=30):
     Plot DAILY trading volume for the last 30 trading days with cyberpunk styling.
     """
     try:
-        # 1. Fetch exactly 30 trading days of daily data (buffering for weekends/holidays)
+        # 1. Fetch data with buffer for non-trading days
         end_date = datetime.today()
-        start_date = end_date - timedelta(days=days + 10)  # Add buffer for non-trading days
-
+        start_date = end_date - timedelta(days=days + 10)
+        
         stock_data = yf.download(
             ticker,
             start=start_date.strftime("%Y-%m-%d"),
             end=end_date.strftime("%Y-%m-%d"),
-            interval="1d",
-            progress=False,
-            auto_adjust=True
+            progress=False
         )
 
         # 2. Validate data
@@ -602,56 +600,54 @@ def plot_stock_volume(ticker, days=30):
             st.warning(f"⚠️ No volume data available for {ticker}")
             return None
 
-        # 3. Extract the most recent 30 trading days
+        # 3. Get last 'days' trading days
         volume = stock_data['Volume'].dropna().iloc[-days:]
-        if len(volume) < 20:
-            st.warning(f"⚠️ Not enough volume data (only {len(volume)} trading days)")
+        if len(volume) < days//2:  # At least half the requested days
+            st.warning(f"⚠️ Insufficient data (only {len(volume)} trading days)")
             return None
 
-        # 4. Compute metrics
+        # 4. Calculate metrics
         avg_volume = volume.mean()
         current_volume = volume.iloc[-1]
-        ma20 = volume.rolling(window=20).mean()
+        ma20 = volume.rolling(20).mean().dropna()
 
-        # 5. Create cyberpunk-styled figure
+        # 5. Create figure
         fig = go.Figure()
 
-        # Add volume bars
+        # Volume bars with color gradient
         fig.add_trace(go.Bar(
             x=volume.index,
             y=volume,
             name='Volume',
             marker=dict(
                 color=volume,
-                colorscale='Blues',
+                colorscale='tealrose',
+                cmin=volume.min(),
+                cmax=volume.max(),
                 line=dict(width=0)
-            ),
-            hovertemplate="<b>Date:</b> %{x|%b %d, %Y}<br><b>Volume:</b> %{y:,}<extra></extra>"
         ))
 
-        # Add 20-day moving average line
+        # 20-day moving average
         fig.add_trace(go.Scatter(
             x=ma20.index,
             y=ma20,
-            name='20-Day Avg',
-            line=dict(color='#FF00FF', width=2),
-            hovertemplate="20-Day Avg: %{y:,}<extra></extra>"
+            name='20-Day MA',
+            line=dict(color='#FF00FF', width=3),
+            hoverinfo='y'
         ))
 
-        # Add annotation for latest volume
+        # Current volume annotation
         fig.add_annotation(
             x=volume.index[-1],
             y=current_volume,
-            text=f"{current_volume / 1e6:.1f}M",
+            text=f"Current: {current_volume/1e6:.1f}M",
             showarrow=True,
             arrowhead=1,
-            font=dict(color='#00FF00', size=12),
-            bordercolor='#00FFFF',
-            borderwidth=1,
-            bgcolor='rgba(10,10,10,0.8)'
+            font=dict(color='white', size=12),
+            bgcolor='rgba(0,0,0,0.8)'
         )
 
-        # Add average volume line
+        # Average line
         fig.add_hline(
             y=avg_volume,
             line_dash="dot",
@@ -661,39 +657,44 @@ def plot_stock_volume(ticker, days=30):
             annotation_font_color="#00FF00"
         )
 
-        # 6. Final cyberpunk layout
+        # 6. Cyberpunk styling
         fig.update_layout(
-            title=f"<b>{ticker.upper()} - Trading Volume (Last {days} Days)</b>",
-            plot_bgcolor='rgba(5,5,15,0.7)',
-            paper_bgcolor='rgba(5,5,15,0.7)',
+            title=f"<b>{ticker.upper()} VOLUME (LAST {days} DAYS)</b>",
+            plot_bgcolor='rgba(0,0,20,0.8)',
+            paper_bgcolor='rgba(0,0,10,0.9)',
             xaxis=dict(
-                title="Date",
-                gridcolor='rgba(0,255,255,0.1)',
-                title_font=dict(color='#00FFFF'),
-                tickfont=dict(color='#00FFFF')
+                gridcolor='rgba(0,255,255,0.2)',
+                title_font=dict(color='cyan'),
+                tickfont=dict(color='cyan')
             ),
             yaxis=dict(
-                title="Volume (Millions)",
-                gridcolor='rgba(0,255,255,0.1)',
-                title_font=dict(color='#00FFFF'),
-                tickfont=dict(color='#00FFFF'),
-                tickformat=".0f",  # Simplified format
-                separatethousands=True  # This will add thousands separators
+                title="Shares Traded",
+                gridcolor='rgba(0,255,255,0.2)',
+                tickformat=".3s",  # Simplified format (auto-scales to millions/billions)
+                title_font=dict(color='cyan'),
+                tickfont=dict(color='cyan')
             ),
             hoverlabel=dict(
-                bgcolor='rgba(0,5,10,0.8)',
-                bordercolor='#00FFFF',
-                font=dict(color='#00FF00')
+                bgcolor='black',
+                bordercolor='cyan',
+                font=dict(color='white')
+            ),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+                font=dict(color='white')
             ),
             height=500,
-            margin=dict(l=50, r=50, b=50, t=90),
-            showlegend=True
+            margin=dict(t=80, b=50)
         )
 
         return fig
 
     except Exception as e:
-        st.error(f"❌ Failed to generate volume plot for {ticker}: {str(e)}")
+        st.error(f"❌ Volume plot failed: {str(e)}")
         return None
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
