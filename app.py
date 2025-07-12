@@ -918,5 +918,110 @@ def main():
                     mime="application/pdf"
                 )
 
+# Add this function near the other data functions
+def get_company_financials(ticker):
+    """Fetch and display key financial metrics for a stock"""
+    try:
+        company = yf.Ticker(ticker)
+        
+        # Check if this is actually a stock (has financials)
+        if not company.info:
+            return False, None
+        
+        # Get key financial data
+        financials = {
+            'Company Name': company.info.get('longName', 'N/A'),
+            'Sector': company.info.get('sector', 'N/A'),
+            'Industry': company.info.get('industry', 'N/A'),
+            'Market Cap': f"${company.info.get('marketCap', 0)/1e9:.2f}B" if company.info.get('marketCap') else 'N/A',
+            'P/E Ratio': company.info.get('trailingPE', 'N/A'),
+            'EPS': company.info.get('trailingEps', 'N/A'),
+            'Dividend Yield': f"{company.info.get('dividendYield', 0)*100:.2f}%" if company.info.get('dividendYield') else '0%',
+            '52 Week High': f"${company.info.get('fiftyTwoWeekHigh', 'N/A')}",
+            '52 Week Low': f"${company.info.get('fiftyTwoWeekLow', 'N/A')}",
+            'Beta': company.info.get('beta', 'N/A')
+        }
+        
+        return True, pd.DataFrame.from_dict(financials, orient='index', columns=['Value'])
+    
+    except Exception as e:
+        st.error(f"Error fetching financial data: {e}")
+        return False, None
+
+# Modify the main function to include financials display
+def main():
+    st.title("Options Profit & Capital Advisor")
+
+    # Initialize session state variables
+    if "calculation_done" not in st.session_state:
+        st.session_state.calculation_done = False
+    if "export_csv" not in st.session_state:
+        st.session_state.export_csv = None
+    if "export_pdf" not in st.session_state:
+        st.session_state.export_pdf = None
+    if "greeks_df" not in st.session_state:
+        st.session_state.greeks_df = None
+    if "summary_info" not in st.session_state:
+        st.session_state.summary_info = None
+    if "plot_fig" not in st.session_state:
+        st.session_state.plot_fig = None
+    if "input_data" not in st.session_state:
+        st.session_state.input_data = None
+    if "trading_advice" not in st.session_state:
+        st.session_state.trading_advice = None
+    if "bs_sensitivities_fig" not in st.session_state:
+        st.session_state.bs_sensitivities_fig = None
+    if "iv_percentile" not in st.session_state:
+        st.session_state.iv_percentile = None
+    if "volume_fig" not in st.session_state:
+        st.session_state.volume_fig = None
+    if "is_stock" not in st.session_state:
+        st.session_state.is_stock = None
+    if "financials_df" not in st.session_state:
+        st.session_state.financials_df = None
+
+    # Input widgets
+    st.markdown("### Input Parameters")
+    with st.expander("Configure your option trade"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
+            option_type = st.selectbox("Option Type", ["call", "put"])
+            strike_price = st.number_input("Strike Price", min_value=0.0, value=150.0)
+            days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
+            risk_free_rate = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=0.025)
+            sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
+            
+        with col2:
+            return_type = st.selectbox("Return Type", ["Simple", "Log"])
+            comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
+            max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
+            min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
+            pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
+
+    # Check if ticker is a stock and get financials
+    if ticker:
+        is_stock, financials_df = get_company_financials(ticker)
+        st.session_state.is_stock = is_stock
+        st.session_state.financials_df = financials_df
+        
+        if not is_stock:
+            st.warning(f"⚠️ {ticker} does not appear to be a stock. This tool works best with individual stocks, not ETFs, indices, or cryptocurrencies.")
+        else:
+            with st.expander("View Company Financials", expanded=True):
+                st.dataframe(financials_df, use_container_width=True)
+
+    # Calculation button (only show if it's a stock)
+    st.markdown("---")
+    if st.session_state.is_stock is not False:
+        calculate_clicked = st.button("Calculate Profit & Advice", key="calculate")
+    else:
+        st.error("Please enter a valid stock ticker to proceed with calculations")
+        calculate_clicked = False
+
+    # Rest of your existing main() function continues here...
+    # [Keep all the existing calculation and display code]
+
 if __name__ == "__main__":
     main()
