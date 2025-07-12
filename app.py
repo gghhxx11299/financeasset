@@ -582,6 +582,7 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
 def plot_stock_volume(ticker, days_to_expiry):
     """Plot stock/ETF trading volume"""
     try:
+        # Fetch data with error handling
         stock_data = yf.download(
             ticker,
             period=f"{min(days_to_expiry, 365)}d",
@@ -589,48 +590,50 @@ def plot_stock_volume(ticker, days_to_expiry):
         )
         
         if stock_data.empty:
-            st.warning(f"No volume data available for {ticker}")
+            st.warning(f"⚠️ No market data available for {ticker}")
             return None
 
+        # Create the figure
         fig = go.Figure()
+        
+        # Add volume bars
         fig.add_trace(go.Bar(
             x=stock_data.index,
             y=stock_data['Volume'],
+            name='Volume',
             marker_color='#1f77b4',
-            hovertemplate="<b>Date</b>: %{x|%b %d}<br><b>Volume</b>: %{y:,}<extra></extra>"
+            hovertemplate="Date: %{x|%b %d}<br>Volume: %{y:,}<extra></extra>"
         ))
         
+        # Add average line
         avg_volume = stock_data['Volume'].mean()
-        fig.add_shape(
-            type="line",
-            x0=stock_data.index[0],
-            x1=stock_data.index[-1],
-            y0=avg_volume,
-            y1=avg_volume,
-            line=dict(color='#ff7f0e', dash='dot')
-        )
-        fig.add_annotation(
-            x=stock_data.index[-1],
+        fig.add_hline(
             y=avg_volume,
-            text=f"Avg: {avg_volume:,.0f}",
-            showarrow=False,
-            xanchor='right',
-            yanchor='bottom',
-            font=dict(color="#ff7f0e")
+            line_dash="dot",
+            line_color="#ff7f0e",
+            annotation_text=f"Avg: {avg_volume:,.0f}",
+            annotation_position="top right"
         )
         
+        # Update layout
         fig.update_layout(
-            title=f"<b>{ticker} Volume</b> | Last {len(stock_data)} Trading Days",
-            yaxis_title="Shares Traded",
-            template="plotly_white",
-            hovermode="x unified"
+            title=f"<b>{ticker} Trading Volume</b><br>Last {len(stock_data)} Trading Days",
+            xaxis_title="Date",
+            yaxis_title="Volume (Shares)",
+            showlegend=False,
+            hovermode="x unified",
+            template="plotly_dark",
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=50, r=50, b=50, t=80),
+            xaxis=dict(showgrid=True, gridcolor='rgba(100,100,100,0.2)'),
+            yaxis=dict(showgrid=True, gridcolor='rgba(100,100,100,0.2)')
         )
         
         return fig
 
-   
     except Exception as e:
-        st.error(f"Error plotting volume: {e}")
+        st.error(f"❌ Error plotting volume for {ticker}: {str(e)}")
         return None
 
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
