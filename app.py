@@ -865,7 +865,7 @@ def main():
                         mode='lines',
                         name='Price',
                         line=dict(color='#00FFFF')
-                    )
+                    ))
                     fig.update_layout(
                         title=f"{ticker} 1-Year Price History",
                         xaxis_title="Date",
