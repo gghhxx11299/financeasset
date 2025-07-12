@@ -579,13 +579,13 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 
-def plot_stock_volume(ticker, days_to_expiry):
-    """Plot stock trading volume as a high-resolution cyberpunk-style line chart"""
+def plot_stock_volume(ticker):
+    """Plot 30-day stock trading volume as a high-resolution cyberpunk-style line chart"""
     try:
-        # Download stock volume data
+        # Force fetch last 30 days of data
         stock_data = yf.download(
             ticker,
-            period=f"{min(days_to_expiry, 365)}d",
+            period="30d",
             interval="1d",
             progress=False
         )
@@ -599,19 +599,19 @@ def plot_stock_volume(ticker, days_to_expiry):
 
         fig = go.Figure()
 
-        # Line chart of volume
+        # Add volume line
         fig.add_trace(go.Scatter(
             x=stock_data.index,
             y=volume,
             mode='lines',
-            name='Daily Volume',
+            name='Volume',
             line=dict(color='#00FFFF', width=2),
             hovertemplate="<b>Date:</b> %{x|%Y-%m-%d}<br><b>Volume:</b> %{y:,} shares<extra></extra>",
             fill='tozeroy',
             fillcolor='rgba(0, 255, 255, 0.15)'
         ))
 
-        # Add average volume horizontal line
+        # Add average line
         fig.add_hline(
             y=avg_volume,
             line_dash="dot",
@@ -623,7 +623,7 @@ def plot_stock_volume(ticker, days_to_expiry):
 
         fig.update_layout(
             title={
-                'text': f"<b>{ticker.upper()} DAILY TRADING VOLUME</b>",
+                'text': f"<b>{ticker.upper()} - 30-DAY TRADING VOLUME</b>",
                 'font': {'color': '#00FF00', 'size': 20},
                 'x': 0.5
             },
@@ -638,7 +638,7 @@ def plot_stock_volume(ticker, days_to_expiry):
                 showgrid=True,
                 gridcolor='rgba(0,255,255,0.2)',
                 title_font=dict(color='#00FFFF', size=14),
-                tickformat="~s"  # K/M/B suffix
+                tickformat="~s"
             ),
             hovermode="x unified",
             template="plotly_dark",
