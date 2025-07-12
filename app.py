@@ -580,9 +580,9 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         return None
 
 def plot_stock_volume(ticker, days_to_expiry):
-    """Plot stock trading volume as a clean line chart"""
+    """Plot stock trading volume as a clean cyberpunk-style line chart"""
     try:
-        # Fetch data
+        # Fetch data from Yahoo Finance
         stock_data = yf.download(
             ticker,
             period=f"{min(days_to_expiry, 365)}d",
@@ -593,74 +593,67 @@ def plot_stock_volume(ticker, days_to_expiry):
             st.warning(f"⚠️ No volume data available for {ticker}")
             return None
 
-        # Convert volume to millions for better Y-axis readability
+        # Convert volume to millions
         volume_in_millions = stock_data['Volume'] / 1_000_000
-        avg_volume = volume_in_millions.mean()
+        avg_volume = float(volume_in_millions.mean())
 
-        # Create figure
+        # Create a line chart with neon styling
         fig = go.Figure()
-        
-        # Add volume line with cyberpunk styling
+
         fig.add_trace(go.Scatter(
             x=stock_data.index,
             y=volume_in_millions,
             mode='lines',
-            name='Volume',
-            line=dict(color='#00FFFF', width=2),  # Neon blue
-            hovertemplate=(
-                "<b>Date</b>: %{x|%b %d, %Y}<br>"
-                "<b>Volume</b>: %{y:.2f}M<br>"  # Shows as X.XX million
-                "<extra></extra>"
-            ),
+            name='Daily Volume',
+            line=dict(color='#00FFFF', width=2),
+            hovertemplate="<b>Date:</b> %{x|%b %d, %Y}<br><b>Volume:</b> %{y:.2f}M<extra></extra>",
             fill='tozeroy',
-            fillcolor='rgba(0, 255, 255, 0.1)'  # Light neon blue fill
+            fillcolor='rgba(0, 255, 255, 0.1)'
         ))
-        
-        # Add average line
+
+        # Add horizontal average line
         fig.add_hline(
             y=avg_volume,
             line_dash="dot",
             line_color="#FF00FF",  # Neon pink
             annotation_text=f"Avg: {avg_volume:.2f}M",
             annotation_position="top right",
-            annotation_font_color="#00FF00"  # Neon green
+            annotation_font_color="#00FF00"
         )
-        
-        # Cyberpunk-styled layout
+
+        # Layout styling
         fig.update_layout(
-            title={
-                'text': f"<b>{ticker} DAILY TRADING VOLUME</b>",
-                'font': {'color': '#00FF00', 'size': 20},
-                'y': 0.9,
-                'x': 0.5,
-                'xanchor': 'center'
-            },
-            xaxis_title="DATE",
-            yaxis_title="VOLUME (MILLIONS OF SHARES)",
-            showlegend=False,
-            hovermode="x unified",
-            template="plotly_dark",
-            plot_bgcolor='rgba(10,10,30,0.5)',
-            paper_bgcolor='rgba(5,5,15,0.7)',
-            margin=dict(l=50, r=50, b=50, t=90),
+            title=dict(
+                text=f"<b>{ticker.upper()} DAILY TRADING VOLUME</b>",
+                font=dict(color="#00FF00", size=20),
+                x=0.5
+            ),
             xaxis=dict(
+                title="Date",
                 showgrid=True,
                 gridcolor='rgba(0, 255, 255, 0.2)',
                 title_font=dict(color='#00FFFF', size=14)
             ),
             yaxis=dict(
+                title="Volume (Millions of Shares)",
+                tickformat=".1f",
                 showgrid=True,
                 gridcolor='rgba(0, 255, 255, 0.2)',
-                title_font=dict(color='#00FFFF', size=14),
-                tickformat=".1f"  # Shows as X.X million
-            )
+                title_font=dict(color='#00FFFF', size=14)
+            ),
+            hovermode="x unified",
+            template="plotly_dark",
+            plot_bgcolor='rgba(10,10,30,0.5)',
+            paper_bgcolor='rgba(5,5,15,0.7)',
+            margin=dict(l=50, r=50, b=50, t=80)
         )
-        
+
         return fig
 
     except Exception as e:
         st.error(f"❌ ERROR PLOTTING VOLUME: {str(e)}")
         return None
+
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
