@@ -580,66 +580,65 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         return None
 
 def plot_stock_volume(ticker, days_to_expiry):
-    """Plot stock trading volume as a clean cyberpunk-style line chart"""
+    """Plot stock trading volume as a high-resolution cyberpunk-style line chart"""
     try:
-        # Fetch data from Yahoo Finance
+        # Download stock volume data
         stock_data = yf.download(
             ticker,
             period=f"{min(days_to_expiry, 365)}d",
+            interval="1d",
             progress=False
         )
-        
+
         if stock_data.empty or 'Volume' not in stock_data.columns:
             st.warning(f"⚠️ No volume data available for {ticker}")
             return None
 
-        # Convert volume to millions
-        volume_in_millions = stock_data['Volume'] / 1_000_000
-        avg_volume = float(volume_in_millions.mean())
+        volume = stock_data['Volume']
+        avg_volume = float(volume.mean())
 
-        # Create a line chart with neon styling
         fig = go.Figure()
 
+        # Line chart of volume
         fig.add_trace(go.Scatter(
             x=stock_data.index,
-            y=volume_in_millions,
+            y=volume,
             mode='lines',
             name='Daily Volume',
             line=dict(color='#00FFFF', width=2),
-            hovertemplate="<b>Date:</b> %{x|%b %d, %Y}<br><b>Volume:</b> %{y:.2f}M<extra></extra>",
+            hovertemplate="<b>Date:</b> %{x|%Y-%m-%d}<br><b>Volume:</b> %{y:,} shares<extra></extra>",
             fill='tozeroy',
-            fillcolor='rgba(0, 255, 255, 0.1)'
+            fillcolor='rgba(0, 255, 255, 0.15)'
         ))
 
-        # Add horizontal average line
+        # Add average volume horizontal line
         fig.add_hline(
             y=avg_volume,
             line_dash="dot",
-            line_color="#FF00FF",  # Neon pink
-            annotation_text=f"Avg: {avg_volume:.2f}M",
+            line_color="#FF00FF",
+            annotation_text=f"Avg: {avg_volume:,.0f}",
             annotation_position="top right",
             annotation_font_color="#00FF00"
         )
 
-        # Layout styling
         fig.update_layout(
-            title=dict(
-                text=f"<b>{ticker.upper()} DAILY TRADING VOLUME</b>",
-                font=dict(color="#00FF00", size=20),
-                x=0.5
-            ),
+            title={
+                'text': f"<b>{ticker.upper()} DAILY TRADING VOLUME</b>",
+                'font': {'color': '#00FF00', 'size': 20},
+                'x': 0.5
+            },
             xaxis=dict(
                 title="Date",
                 showgrid=True,
-                gridcolor='rgba(0, 255, 255, 0.2)',
+                gridcolor='rgba(0,255,255,0.2)',
                 title_font=dict(color='#00FFFF', size=14)
             ),
             yaxis=dict(
-                title="Volume (Millions of Shares)",
-                tickformat=".1f",
+                title="Volume (Shares)",
                 showgrid=True,
-                gridcolor='rgba(0, 255, 255, 0.2)',
-                title_font=dict(color='#00FFFF', size=14)
+                gridcolor='rgba(0,255,255,0.2)',
+                title_font=dict(color='#00FFFF', size=14),
+                tickformat="~s"  # K/M/B suffix
             ),
             hovermode="x unified",
             template="plotly_dark",
@@ -653,6 +652,7 @@ def plot_stock_volume(ticker, days_to_expiry):
     except Exception as e:
         st.error(f"❌ ERROR PLOTTING VOLUME: {str(e)}")
         return None
+
 
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
