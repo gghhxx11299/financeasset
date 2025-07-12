@@ -614,7 +614,7 @@ def plot_stock_volume(ticker, days=30):
         # 5. Create figure
         fig = go.Figure()
 
-        # Volume bars with color gradient
+        # Volume bars with color gradient - FIXED: Use min() and max() to get scalar values
         fig.add_trace(go.Bar(
             x=volume.index,
             y=volume,
@@ -622,10 +622,10 @@ def plot_stock_volume(ticker, days=30):
             marker=dict(
                 color=volume,
                 colorscale='tealrose',
-                cmin=volume.min(),
-                cmax=volume.max(),
+                cmin=volume.min(),  # Now returns a single number
+                cmax=volume.max(),  # Now returns a single number
                 line=dict(width=0)
-                         )))
+        ))
 
         # 20-day moving average
         fig.add_trace(go.Scatter(
@@ -670,7 +670,7 @@ def plot_stock_volume(ticker, days=30):
             yaxis=dict(
                 title="Shares Traded",
                 gridcolor='rgba(0,255,255,0.2)',
-                tickformat=".3s",  # Simplified format (auto-scales to millions/billions)
+                tickformat=".3s",  # Auto-scaling format
                 title_font=dict(color='cyan'),
                 tickfont=dict(color='cyan')
             ),
