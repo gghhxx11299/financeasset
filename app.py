@@ -313,11 +313,11 @@ st.markdown("""
         <span>MADE WITH <span style="color: #f00;">♥</span> BY GEABRAL MULUGETA</span>
         <span>|</span>
         <a href="https://github.com/yourusername" target="_blank" style="text-decoration: none;">
-            <span style="font-family: 'Courier New', monospace;">[ GITHUB ]</span>
+            <span style="font-family: 'Courier New', monospace;">[ https://github.com/gghhxx11299 ]</span>
         </a>
         <span>|</span>
         <a href="https://linkedin.com/in/yourprofile" target="_blank" style="text-decoration: none;">
-            <span style="font-family: 'Courier New', monospace;">[ LINKEDIN ]</span>
+            <span style="font-family: 'Courier New', monospace;">[ https://www.linkedin.com/in/geabral-mulugeta-334358327/ ]</span>
         </a>
         <span>|</span>
         <span style="font-family: 'Courier New', monospace;">[ v1.0.0 ]</span>
