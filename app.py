@@ -19,210 +19,145 @@ from plotly.subplots import make_subplots
 # --- EXTREME CSS STYLING ---
 # --- ULTRA CYBERPUNK CSS STYLING ---
 # --- Enhanced Cyberpunk CSS with Better Layout ---
+# --- ULTRA CYBERPUNK CSS WITH WIDER CHARTS ---
 st.markdown("""
 <style>
     /* === CYBERPUNK BASE === */
-    body {
-        background: radial-gradient(circle at center, #0f0f1a 0%, #050510 100%) !important;
-        color: #0ff !important;
-        font-family: 'Courier New', monospace !important;
+    :root {
+        --neon-blue: #0ff;
+        --neon-green: #0f0;
+        --neon-pink: #f0f;
+        --dark-bg: #0a0a14;
+        --darker-bg: #050510;
+        --glow-blue: 0 0 10px rgba(0, 255, 255, 0.7);
+        --glow-green: 0 0 10px rgba(0, 255, 0, 0.7);
+    }
+    
+    /* === MAIN CONTAINER === */
+    .main {
+        background: linear-gradient(135deg, var(--dark-bg) 0%, var(--darker-bg) 100%) !important;
+        border: 1px solid var(--neon-blue) !important;
+        box-shadow: var(--glow-blue), inset 0 0 20px rgba(0, 255, 255, 0.2) !important;
+        border-radius: 0 !important;
+        padding: 2rem !important;
+        max-width: 98vw !important;
+        margin: 0 auto !important;
         overflow-x: hidden !important;
     }
 
-    /* === MAIN CONTAINER WITH NEON GLOW === */
-    .main {
-        background: rgba(10, 10, 20, 0.85) !important;
-        backdrop-filter: blur(12px) !important;
-        border: 1px solid #0ff !important;
-        box-shadow: 
-            0 0 25px rgba(0, 255, 255, 0.4),
-            inset 0 0 15px rgba(0, 255, 255, 0.2) !important;
-        border-radius: 0 !important;
-        padding: 2rem !important;
-        margin: 0 auto !important;
-        max-width: 95% !important;
-    }
-
-    /* === CYBER TITLE WITH ANIMATED GLITCH EFFECT === */
+    /* === ENHANCED TITLES === */
     .stApp h1 {
-        color: #0ff !important;
-        text-shadow: 
-            0 0 8px #0ff,
-            0 0 15px #0ff,
-            0 0 30px rgba(0, 255, 255, 0.7) !important;
+        color: var(--neon-blue) !important;
+        text-shadow: 0 0 5px var(--neon-blue), 0 0 10px var(--neon-blue) !important;
         font-family: 'Courier New', monospace !important;
         font-weight: bold !important;
-        letter-spacing: 3px !important;
+        letter-spacing: 2px !important;
         position: relative !important;
-        padding-bottom: 15px !important;
-        border-bottom: 2px solid #0ff !important;
-        animation: glitch 5s linear infinite !important;
+        padding-bottom: 10px !important;
+        border-bottom: 2px solid var(--neon-blue) !important;
+        animation: scanline 8s linear infinite !important;
     }
 
-    @keyframes glitch {
-        0%, 100% { text-shadow: 0 0 8px #0ff, 0 0 15px #0ff; transform: translateX(0); }
-        1% { transform: translateX(-2px); }
-        2% { transform: translateX(2px); }
-        3% { transform: translateX(0); }
-        98% { text-shadow: 0 0 8px #0ff, 0 0 15px #0ff, 0 0 20px #f0f; }
+    @keyframes scanline {
+        0% { background: linear-gradient(to bottom, transparent 95%, rgba(0, 255, 255, 0.1) 95%) !important; }
+        100% { background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 255, 0.1) 0%) !important; }
     }
 
-    /* === NEON BUTTONS WITH CIRCUIT BOARD EFFECT === */
+    /* === WIDER TRADING ADVICE CONTAINER === */
+    div[data-testid="stExpander"] > div {
+        width: 100% !important;
+        max-width: 98vw !important;
+        background: rgba(10, 15, 25, 0.9) !important;
+        border: 1px solid var(--neon-green) !important;
+        box-shadow: var(--glow-green) !important;
+    }
+
+    /* === WIDER CHART CONTAINERS === */
+    .stPlotlyChart {
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 98vw !important;
+        margin-left: -1rem !important;
+    }
+
+    /* === SENSITIVITIES CHART SPECIFIC === */
+    .js-plotly-plot .plot-container {
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* === VOLUME CHART SPECIFIC === */
+    div[data-testid="stVerticalBlock"] > div:nth-child(3) > div {
+        width: 100% !important;
+        padding: 0 !important;
+    }
+
+    /* === NEON BUTTONS === */
     .stButton>button {
-        background: linear-gradient(135deg, rgba(0,255,255,0.1) 0%, rgba(0,0,0,0.5) 100%) !important;
-        border: 2px solid #0ff !important;
-        color: #0ff !important;
+        background: transparent !important;
+        border: 2px solid var(--neon-blue) !important;
+        color: var(--neon-blue) !important;
         border-radius: 0 !important;
-        padding: 12px 30px !important;
+        padding: 0.75rem 2rem !important;
         font-family: 'Courier New', monospace !important;
         font-weight: bold !important;
+        text-transform: uppercase !important;
         letter-spacing: 1px !important;
+        transition: all 0.3s !important;
+        box-shadow: var(--glow-blue) !important;
         position: relative !important;
         overflow: hidden !important;
-        transition: all 0.4s !important;
-        box-shadow: 
-            0 0 15px rgba(0, 255, 255, 0.4),
-            inset 0 0 10px rgba(0, 255, 255, 0.2) !important;
-        text-transform: uppercase !important;
     }
 
     .stButton>button:hover {
-        background: linear-gradient(135deg, rgba(0,255,255,0.2) 0%, rgba(0,0,0,0.6) 100%) !important;
-        text-shadow: 0 0 8px #0ff !important;
-        box-shadow: 
-            0 0 25px rgba(0, 255, 255, 0.6),
-            inset 0 0 15px rgba(0, 255, 255, 0.3) !important;
-        transform: translateY(-3px) !important;
+        background: rgba(0, 255, 255, 0.1) !important;
+        text-shadow: 0 0 5px var(--neon-blue) !important;
+        box-shadow: 0 0 20px var(--neon-blue) !important;
+        transform: translateY(-2px) !important;
     }
 
-    /* === DATA CONTAINERS WITH HOLOGRAM EFFECT === */
-    .stDataFrame, .stMetric, .stAlert {
-        background: rgba(5, 5, 15, 0.7) !important;
-        border: 1px solid #0ff !important;
-        box-shadow: 
-            0 0 15px rgba(0, 255, 255, 0.3),
-            inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
-        border-radius: 0 !important;
-        font-family: 'Courier New', monospace !important;
-        margin-bottom: 1.5rem !important;
-    }
-
-    /* === RESPONSIVE GRID LAYOUT === */
-    .stContainer {
-        display: flex !important;
-        flex-wrap: wrap !important;
-        gap: 1.5rem !important;
-        margin-bottom: 2rem !important;
-    }
-
-    .stColumn {
-        flex: 1 !important;
-        min-width: 300px !important;
-        padding: 1.5rem !important;
-        background: rgba(15, 15, 30, 0.6) !important;
-        border: 1px solid rgba(0, 255, 255, 0.3) !important;
-        box-shadow: 0 0 15px rgba(0, 255, 255, 0.2) !important;
-    }
-
-    /* === CHARTS CONTAINER === */
-    .plot-container {
-        width: 100% !important;
-        margin: 0 auto !important;
-        padding: 1rem !important;
-        background: rgba(0, 5, 10, 0.7) !important;
-        border: 1px solid #0ff !important;
-        box-shadow: 
-            0 0 20px rgba(0, 255, 255, 0.3),
-            inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
-        margin-bottom: 2rem !important;
-    }
-
-    /* === EXPANDERS WITH CIRCUIT LINES === */
-    .st-expander {
-        background: rgba(10, 15, 25, 0.8) !important;
-        border: 1px solid #0f0 !important;
-        border-radius: 0 !important;
-        box-shadow: 
-            0 0 15px rgba(0, 255, 0, 0.3),
-            inset 0 0 10px rgba(0, 255, 0, 0.1) !important;
-        margin-bottom: 1.5rem !important;
-    }
-
-    .st-expander .streamlit-expanderHeader {
-        color: #0f0 !important;
-        font-family: 'Courier New', monospace !important;
-        font-weight: bold !important;
-        text-shadow: 0 0 8px rgba(0, 255, 0, 0.5) !important;
-        padding: 1rem !important;
-    }
-
-    /* === SCROLLBAR STYLING === */
-    ::-webkit-scrollbar {
-        width: 12px !important;
-        height: 12px !important;
-    }
-
-    ::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.4) !important;
-        border-radius: 0 !important;
-    }
-
-    ::-webkit-scrollbar-thumb {
-        background: linear-gradient(#0ff, #0f0) !important;
-        border-radius: 0 !important;
-        border: 2px solid rgba(0, 255, 255, 0.5) !important;
-    }
-
-    /* === INPUT FIELDS === */
-    .stTextInput>div>div>input,
-    .stNumberInput>div>div>input,
-    .stSelectbox>div>div>select {
-        background: rgba(0, 5, 10, 0.7) !important;
-        border: 1px solid #0ff !important;
-        color: #0ff !important;
-        border-radius: 0 !important;
-        font-family: 'Courier New', monospace !important;
-        padding: 10px 15px !important;
-        box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
-    }
-
-    /* === METRIC CARDS === */
+    /* === DATA CARDS === */
     .metric-card {
-        background: linear-gradient(135deg, rgba(0,10,20,0.7) 0%, rgba(0,0,0,0.8) 100%) !important;
-        border: 1px solid #0ff !important;
-        border-radius: 0 !important;
-        box-shadow: 
-            0 0 20px rgba(0, 255, 255, 0.3),
-            inset 0 0 15px rgba(0, 255, 255, 0.1) !important;
+        background: rgba(10, 10, 20, 0.8) !important;
+        border: 1px solid var(--neon-blue) !important;
+        box-shadow: var(--glow-blue), inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
         padding: 1.5rem !important;
         margin-bottom: 1.5rem !important;
         position: relative !important;
-        overflow: hidden !important;
     }
 
-    .metric-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(90deg, transparent, #0ff, transparent);
-        animation: circuit 3s linear infinite;
+    /* === SCROLLBAR === */
+    ::-webkit-scrollbar {
+        width: 10px !important;
+        height: 10px !important;
     }
 
-    /* === FOOTER WITH STATUS GRID === */
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(var(--neon-blue), var(--neon-green)) !important;
+        border-radius: 0 !important;
+    }
+
+    /* === FOOTER WITH CREDITS === */
     .footer {
-        background: linear-gradient(to right, rgba(0,5,10,0.9) 0%, rgba(0,10,20,0.9) 100%) !important;
-        border-top: 2px solid #0ff !important;
-        color: #0ff !important;
-        font-family: 'Courier New', monospace !important;
+        background: rgba(0, 5, 10, 0.9) !important;
+        border-top: 1px solid var(--neon-blue) !important;
         padding: 1.5rem !important;
-        box-shadow: 0 -5px 25px rgba(0, 255, 255, 0.3) !important;
-        margin-top: 3rem !important;
-        display: grid !important;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
-        gap: 1rem !important;
+        margin-top: 2rem !important;
+        text-align: center !important;
+        box-shadow: 0 -5px 15px rgba(0, 255, 255, 0.2) !important;
+    }
+
+    .footer a {
+        color: var(--neon-green) !important;
+        text-decoration: none !important;
+        margin: 0 10px !important;
+        transition: all 0.3s !important;
+    }
+
+    .footer a:hover {
+        color: var(--neon-blue) !important;
+        text-shadow: var(--glow-blue) !important;
     }
 
     /* === RESPONSIVE ADJUSTMENTS === */
@@ -230,67 +165,26 @@ st.markdown("""
         .main {
             padding: 1rem !important;
         }
-        .stColumn {
-            min-width: 100% !important;
+        .stPlotlyChart {
+            margin-left: 0 !important;
         }
-        .footer {
-            grid-template-columns: 1fr !important;
-        }
-    }
-
-    /* === ANIMATIONS === */
-    @keyframes circuit {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(100%); }
-    }
-
-    @keyframes pulse {
-        0% { opacity: 0.3; transform: scale(0.8); }
-        100% { opacity: 1; transform: scale(1.2); }
-    }
-
-    @keyframes hologram {
-        0% { opacity: 0.8; }
-        50% { opacity: 1; }
-        100% { opacity: 0.8; }
-    }
-
-    /* === TABLES === */
-    .stDataFrame table {
-        width: 100% !important;
-    }
-
-    .stDataFrame th {
-        background: rgba(0, 255, 255, 0.1) !important;
-        color: #0ff !important;
-        font-weight: bold !important;
-    }
-
-    .stDataFrame td {
-        background: rgba(0, 10, 20, 0.5) !important;
-        color: #0ff !important;
-        border: 1px solid rgba(0, 255, 255, 0.2) !important;
-    }
-
-    /* === DOWNLOAD BUTTONS === */
-    .stDownloadButton>button {
-        background: linear-gradient(135deg, rgba(0,255,0,0.1) 0%, rgba(0,0,0,0.5) 100%) !important;
-        border: 2px solid #0f0 !important;
-        color: #0f0 !important;
-        font-family: 'Courier New', monospace !important;
-        border-radius: 0 !important;
-        transition: all 0.4s !important;
-        text-transform: uppercase !important;
-        letter-spacing: 1px !important;
-    }
-
-    .stDownloadButton>button:hover {
-        background: linear-gradient(135deg, rgba(0,255,0,0.2) 0%, rgba(0,0,0,0.6) 100%) !important;
-        border-color: #0ff !important;
-        color: #0ff !important;
-        box-shadow: 0 0 20px rgba(0, 255, 255, 0.4) !important;
     }
 </style>
+""", unsafe_allow_html=True)
+
+# --- FOOTER WITH CREDITS ---
+st.markdown("""
+<div class="footer">
+    <div>
+        <span style="color: #0ff;">Made with ❤️ by </span>
+        <span style="color: #0f0; font-weight: bold;">Geabral Mulugeta</span>
+    </div>
+    <div style="margin-top: 1rem;">
+        <a href="https://github.com/gghhxx11299" target="_blank">GitHub</a>
+        <span style="color: #0ff;"> | </span>
+        <a href="https://www.linkedin.com/in/geabral-mulugeta-334358327/" target="_blank">LinkedIn</a>
+    </div>
+</div>
 """, unsafe_allow_html=True)
 SECTOR_MAP = {
     "technology": ["XLK", "VGT", "QTEC"],
