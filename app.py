@@ -581,158 +581,65 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
 
 def plot_stock_volume(ticker, lookback_days=30):
     """
-    Plot stock trading volume with cyberpunk styling and robust error handling.
-
-    Parameters:
-        ticker (str): Stock ticker symbol
-        lookback_days (int): Number of days to display (default: 30)
-
-    Returns:
-        plotly.graph_objs.Figure or None
+    Reliable stock volume plotter with minimal error-prone operations
     """
     try:
-        max_retries = 3
+        # 1. Fetch data with simple retry logic
         stock_data = None
-
-        for attempt in range(max_retries):
+        for _ in range(3):
             try:
                 stock_data = yf.download(
                     ticker,
                     period=f"{max(lookback_days, 5)}d",
                     interval="1d",
-                    progress=False,
-                    threads=True
+                    progress=False
                 )
-
-                # Check if we got valid data
-                if stock_data is not None and not stock_data.empty:
+                if not stock_data.empty:
                     break
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise e
-                time.sleep(1.5)  # Wait before retry
+                time.sleep(1)
+            except:
+                time.sleep(1)
+                continue
 
-        # Validate we have usable data
-        if stock_data is None or stock_data.empty or 'Volume' not in stock_data.columns:
-            st.warning(f"⚠️ Could not retrieve usable volume data for {ticker}")
+        # 2. Basic validation (no ambiguous Series comparisons)
+        if stock_data is None:
+            st.warning(f"No data returned for {ticker}")
+            return None
+            
+        if stock_data.empty:
+            st.warning(f"Empty data for {ticker}")
+            return None
+            
+        if 'Volume' not in stock_data.columns:
+            st.warning(f"No Volume column for {ticker}")
             return None
 
-        # Extract volume series
-        volume = stock_data['Volume'].copy()
-        
-        # Replace zeros with NaN and drop them
-        volume.replace(0, np.nan, inplace=True)
-        volume.dropna(inplace=True)
-        
-        if volume.empty:
-            st.warning(f"⚠️ No valid volume values for {ticker}")
+        # 3. Safe data processing
+        volume = stock_data['Volume'].dropna()
+        if len(volume) == 0:
+            st.warning(f"No valid volume data for {ticker}")
             return None
 
-        # Calculate metrics
-        avg_volume = volume.mean()
-        current_volume = volume.iloc[-1]
-        volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
-
-        # Create figure
+        # 4. Simple visualization
         fig = go.Figure()
-
-        # Add volume bars
         fig.add_trace(go.Bar(
             x=volume.index,
             y=volume,
-            name='Volume',
-            marker=dict(
-                color=volume,
-                colorscale=[(0, 'rgba(0,255,255,0.1)'), (1, 'rgba(0,255,255,0.8)')],
-                showscale=False,
-                line=dict(width=0)
-            ),
-            hovertemplate="<b>Date:</b> %{x|%b %d, %Y}<br>" +
-                          "<b>Volume:</b> %{y:,} shares<extra></extra>"
+            marker_color='#00FFFF'
         ))
-
-        # Add moving averages if we have enough data
-        if len(volume) >= 5:
-            for window, color in [(5, '#FF00FF'), (20, '#00FF00')]:
-                if len(volume) >= window:
-                    ma = volume.rolling(window=window).mean()
-                    fig.add_trace(go.Scatter(
-                        x=ma.index,
-                        y=ma,
-                        name=f'{window}-Day MA',
-                        line=dict(width=2, color=color),
-                        hovertemplate=f"<b>{window}-Day MA:</b> %{{y:,.0f}}<extra></extra>"
-                    ))
-
-        # Horizontal average line
-        fig.add_hline(
-            y=avg_volume,
-            line_dash="dot",
-            line_color="#FF00FF",
-            annotation_text=f"Avg: {avg_volume:,.0f}",
-            annotation_position="top right",
-            annotation_font=dict(color='#00FF00')
-        )
-
-        # Annotate latest volume
-        fig.add_annotation(
-            x=volume.index[-1],
-            y=current_volume,
-            text=f"<b>Current:</b> {current_volume:,.0f}<br>({volume_ratio:.1f}× avg)",
-            showarrow=True,
-            arrowhead=1,
-            ax=-40,
-            ay=-40,
-            bgcolor='rgba(10,10,20,0.8)',
-            bordercolor='#00FFFF',
-            borderwidth=1,
-            font=dict(color='#00FF00', size=12)
-        )
-
-        # Layout with cyberpunk theme
+        
         fig.update_layout(
-            title={
-                'text': f"<b>{ticker.upper()} VOLUME ANALYSIS (LAST {lookback_days} DAYS)</b>",
-                'font': {'color': '#00FF00', 'size': 20},
-                'x': 0.5,
-                'xanchor': 'center'
-            },
-            xaxis=dict(
-                title="Date",
-                gridcolor='rgba(0,255,255,0.1)',
-                title_font=dict(color='#00FFFF'),
-                tickfont=dict(color='#00FFFF')
-            ),
-            yaxis=dict(
-                title="Volume (Shares)",
-                gridcolor='rgba(0,255,255,0.1)',
-                title_font=dict(color='#00FFFF'),
-                tickfont=dict(color='#00FFFF'),
-                tickformat=","
-            ),
-            hoverlabel=dict(
-                bgcolor='rgba(5,5,15,0.8)',
-                bordercolor='#00FFFF',
-                font=dict(color='#00FF00')
-            ),
-            plot_bgcolor='rgba(5,5,15,0.7)',
+            title=f"{ticker} Volume (Last {lookback_days} Days)",
+            plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(5,5,15,0.7)',
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1,
-                font=dict(color='#00FFFF')
-            ),
-            margin=dict(l=50, r=50, b=50, t=90),
-            height=500
+            xaxis=dict(color='#00FFFF'),
+            yaxis=dict(color='#00FFFF')
         )
-
+        
         return fig
 
     except Exception as e:
-        st.error(f"❌ Error generating volume plot for {ticker}: {str(e)}")
+        st.error(f"Volume plot failed for {ticker}: {str(e)}")
         return None
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
