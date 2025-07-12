@@ -371,6 +371,7 @@ def plot_stock_volume(ticker, days_to_expiry):
         st.error(f"❌ Error processing {ticker}: {str(e)}")
         return None
 
+
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
     fig = make_subplots(rows=3, cols=1, 
@@ -549,6 +550,57 @@ def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comf
         "Advice": advice,
         "Reason": reasons
     })
+def plot_stock_volume(ticker, days_to_expiry):
+    """Create interactive volume chart for the stock"""
+    try:
+        # Get historical data with enough days to show context
+        period = max(30, days_to_expiry * 2)
+        stock_data = yf.Ticker(ticker).history(period=f"{period}d")
+        
+        if stock_data.empty:
+            return None
+            
+        fig = go.Figure()
+        
+        # Add volume bars
+        fig.add_trace(go.Bar(
+            x=stock_data.index,
+            y=stock_data['Volume'],
+            name='Volume',
+            marker_color='#636EFA',
+            opacity=0.7,
+            hovertemplate='<b>Date</b>: %{x|%b %d, %Y}<br><b>Volume</b>: %{y:,}<extra></extra>'
+        ))
+        
+        # Add 20-day moving average
+        if len(stock_data) > 20:
+            ma_20 = stock_data['Volume'].rolling(20).mean()
+            fig.add_trace(go.Scatter(
+                x=stock_data.index,
+                y=ma_20,
+                name='20-Day MA',
+                line=dict(color='#FFA500', width=2),
+                hovertemplate='<b>20-Day Avg</b>: %{y:,}<extra></extra>'
+            ))
+        
+        fig.update_layout(
+            title=f'<b>{ticker} Trading Volume (Last {period} Days)</b>',
+            xaxis_title='Date',
+            yaxis_title='Volume',
+            hovermode="x unified",
+            template="plotly_white",
+            height=400,
+            margin=dict(l=50, r=50, b=50, t=80),
+            plot_bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(showgrid=False),
+            yaxis=dict(showgrid=True, gridcolor='#f0f0f0')
+        )
+        
+        return fig
+        
+    except Exception as e:
+        st.warning(f"Could not generate volume chart: {e}")
+        return None
 
 # --- Streamlit UI ---
 def main():
