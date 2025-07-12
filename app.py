@@ -865,7 +865,7 @@ def main():
                         mode='lines',
                         name='Price',
                         line=dict(color='#00FFFF')
-                    ))
+                    )
                     fig.update_layout(
                         title=f"{ticker} 1-Year Price History",
                         xaxis_title="Date",
@@ -1208,3 +1208,6 @@ def main():
                     file_name="options_analysis_report.pdf",
                     mime="application/pdf"
                 )
+
+if __name__ == "__main__":
+    main()
