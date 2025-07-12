@@ -17,69 +17,82 @@ from plotly.subplots import make_subplots
 
 # --- Extensive Custom CSS for styling ---
 # --- EXTREME CSS STYLING ---
+# --- ULTRA CYBERPUNK CSS STYLING ---
 st.markdown("""
 <style>
-    /* === GLASSMORPHIC MAIN CONTAINER === */
-    .main {
-        background: rgba(255, 255, 255, 0.1) !important;
-        backdrop-filter: blur(20px) !important;
-        -webkit-backdrop-filter: blur(20px) !important;
-        border-radius: 0 !important;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37) !important;
-        border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    /* === CYBERPUNK BACKGROUND === */
+    body {
+        background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%) !important;
+        color: #0ff !important;
+        font-family: 'Courier New', monospace !important;
     }
 
-    /* === NEON GLOW TITLE === */
+    /* === TERMINAL-LIKE MAIN CONTAINER === */
+    .main {
+        background: rgba(10, 10, 20, 0.8) !important;
+        backdrop-filter: blur(15px) !important;
+        border: 1px solid #0ff !important;
+        box-shadow: 
+            0 0 20px rgba(0, 255, 255, 0.3),
+            inset 0 0 20px rgba(0, 255, 255, 0.1) !important;
+        border-radius: 5px !important;
+        padding: 20px !important;
+    }
+
+    /* === CYBER TITLE WITH SCAN LINE EFFECT === */
     .stApp h1 {
-        color: #fff !important;
+        color: #0ff !important;
         text-shadow: 
             0 0 5px #0ff,
             0 0 10px #0ff,
-            0 0 20px #0ff,
-            0 0 40px #0ff !important;
-        animation: neon-pulse 1.5s infinite alternate !important;
-        font-family: 'Arial Black', sans-serif !important;
+            0 0 20px rgba(0, 255, 255, 0.5) !important;
+        font-family: 'Courier New', monospace !important;
+        font-weight: bold !important;
         letter-spacing: 2px !important;
+        position: relative !important;
+        padding-bottom: 10px !important;
+        border-bottom: 1px solid #0ff !important;
+        animation: scanline 8s linear infinite !important;
     }
 
-    @keyframes neon-pulse {
-        from { text-shadow: 0 0 5px #0ff, 0 0 10px #0ff; }
-        to { text-shadow: 0 0 20px #0ff, 0 0 40px #0ff; }
+    @keyframes scanline {
+        0% { background: linear-gradient(to bottom, transparent 95%, rgba(0, 255, 255, 0.1) 95%) !important; }
+        100% { background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 255, 0.1) 0%) !important; }
     }
 
-    /* === 3D BUTTONS WITH DEPTH === */
+    /* === NEON BUTTONS WITH CIRCUIT BOARD EFFECT === */
     .stButton>button {
-        background: linear-gradient(145deg, #6e8efb, #a777e3) !important;
-        border: none !important;
-        border-radius: 15px !important;
-        box-shadow: 
-            0 5px 15px rgba(0, 0, 0, 0.3),
-            inset 0 -3px 5px rgba(0, 0, 0, 0.2),
-            inset 0 3px 5px rgba(255, 255, 255, 0.2) !important;
-        transform-style: preserve-3d !important;
-        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-        color: white !important;
+        background: transparent !important;
+        border: 2px solid #0ff !important;
+        color: #0ff !important;
+        border-radius: 0 !important;
+        padding: 10px 25px !important;
+        font-family: 'Courier New', monospace !important;
         font-weight: bold !important;
         text-transform: uppercase !important;
-        padding: 12px 24px !important;
+        letter-spacing: 1px !important;
         position: relative !important;
         overflow: hidden !important;
+        transition: all 0.3s !important;
+        box-shadow: 
+            0 0 10px rgba(0, 255, 255, 0.3),
+            inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
     }
 
     .stButton>button:hover {
-        transform: translateY(-5px) rotateX(10deg) !important;
+        background: rgba(0, 255, 255, 0.1) !important;
+        text-shadow: 0 0 5px #0ff !important;
         box-shadow: 
-            0 8px 25px rgba(0, 0, 0, 0.4),
-            inset 0 -3px 10px rgba(0, 0, 0, 0.3),
-            inset 0 3px 10px rgba(255, 255, 255, 0.3) !important;
+            0 0 20px rgba(0, 255, 255, 0.5),
+            inset 0 0 15px rgba(0, 255, 255, 0.2) !important;
+        transform: translateY(-2px) !important;
     }
 
     .stButton>button:active {
-        transform: translateY(2px) !important;
+        transform: translateY(1px) !important;
         box-shadow: 
-            0 2px 5px rgba(0, 0, 0, 0.2),
-            inset 0 -1px 2px rgba(0, 0, 0, 0.1),
-            inset 0 1px 2px rgba(255, 255, 255, 0.1) !important;
+            0 0 5px rgba(0, 255, 255, 0.3),
+            inset 0 0 5px rgba(0, 255, 255, 0.1) !important;
     }
 
     .stButton>button::before {
@@ -89,7 +102,12 @@ st.markdown("""
         left: -100%;
         width: 100%;
         height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(0, 255, 255, 0.2),
+            transparent
+        );
         transition: 0.5s;
     }
 
@@ -97,47 +115,44 @@ st.markdown("""
         left: 100%;
     }
 
-    /* === CYBERPUNK METRIC CARDS === */
+    /* === DATA CARDS WITH CIRCUIT BOARD LINES === */
     .metric-card {
-        background: rgba(0, 0, 0, 0.7) !important;
+        background: rgba(10, 10, 20, 0.7) !important;
         border: 1px solid #0ff !important;
-        border-radius: 10px !important;
-        box-shadow: 0 0 10px rgba(0, 255, 255, 0.5), inset 0 0 5px rgba(0, 255, 255, 0.3) !important;
+        border-radius: 0 !important;
+        box-shadow: 
+            0 0 15px rgba(0, 255, 255, 0.2),
+            inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
         padding: 20px !important;
         margin-bottom: 20px !important;
-        transition: all 0.3s ease !important;
         position: relative !important;
         overflow: hidden !important;
     }
 
-    .metric-card:hover {
-        transform: translateY(-5px) scale(1.02) !important;
-        box-shadow: 0 0 20px rgba(0, 255, 255, 0.8), inset 0 0 10px rgba(0, 255, 255, 0.5) !important;
-    }
-
-    .metric-card::after {
+    .metric-card::before {
         content: '';
         position: absolute;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        background: linear-gradient(45deg, transparent, rgba(0, 255, 255, 0.1), transparent);
-        transform: rotate(45deg);
-        animation: shine 3s infinite;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #0ff, transparent);
+        animation: circuit 3s linear infinite;
     }
 
-    @keyframes shine {
-        0% { left: -50%; }
-        100% { left: 150%; }
+    @keyframes circuit {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
     }
 
-    /* === HACKER-THEME EXPANDERS === */
+    /* === TERMINAL-STYLE EXPANDERS === */
     .st-expander {
-        background: rgba(0, 0, 0, 0.7) !important;
+        background: rgba(10, 10, 20, 0.7) !important;
         border: 1px solid #0f0 !important;
-        border-radius: 5px !important;
-        box-shadow: 0 0 10px rgba(0, 255, 0, 0.3) !important;
+        border-radius: 0 !important;
+        box-shadow: 
+            0 0 10px rgba(0, 255, 0, 0.2),
+            inset 0 0 5px rgba(0, 255, 0, 0.1) !important;
     }
 
     .st-expander .streamlit-expanderHeader {
@@ -148,209 +163,213 @@ st.markdown("""
     }
 
     .st-expander .streamlit-expanderContent {
-        background: rgba(0, 20, 0, 0.3) !important;
+        background: rgba(0, 20, 10, 0.3) !important;
         border-top: 1px dashed #0f0 !important;
+        font-family: 'Courier New', monospace !important;
     }
 
-    /* === MATRIX-LIKE SCROLLBAR === */
+    /* === CYBERPUNK SCROLLBAR === */
     ::-webkit-scrollbar {
-        width: 12px !important;
-        height: 12px !important;
+        width: 10px !important;
+        height: 10px !important;
     }
 
     ::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.5) !important;
-        border-radius: 10px !important;
+        background: rgba(0, 0, 0, 0.3) !important;
+        border-radius: 0 !important;
     }
 
     ::-webkit-scrollbar-thumb {
-        background: linear-gradient(#0f0, #0ff) !important;
-        border-radius: 10px !important;
-        border: 2px solid rgba(0, 0, 0, 0.5) !important;
+        background: linear-gradient(#0ff, #0f0) !important;
+        border-radius: 0 !important;
+        border: 1px solid rgba(0, 255, 255, 0.5) !important;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-        background: linear-gradient(#0ff, #0f0) !important;
+        background: linear-gradient(#0f0, #0ff) !important;
     }
 
-    /* === PULSING FOOTER === */
+    /* === CYBER FOOTER WITH STATUS INDICATOR === */
     .footer {
-        background: linear-gradient(90deg, #000, #111, #000) !important;
-        color: #0ff !important;
-        text-shadow: 0 0 5px #0ff !important;
+        background: rgba(0, 0, 10, 0.8) !important;
         border-top: 1px solid #0ff !important;
-        box-shadow: 0 -5px 20px rgba(0, 255, 255, 0.3) !important;
-        animation: footer-pulse 2s infinite alternate !important;
-    }
-
-    @keyframes footer-pulse {
-        from { opacity: 0.8; }
-        to { opacity: 1; }
+        color: #0ff !important;
+        font-family: 'Courier New', monospace !important;
+        padding: 15px !important;
+        box-shadow: 0 -5px 20px rgba(0, 255, 255, 0.2) !important;
     }
 
     .footer a {
         color: #0f0 !important;
-        text-shadow: 0 0 5px #0f0 !important;
+        text-decoration: none !important;
         transition: all 0.3s !important;
     }
 
     .footer a:hover {
         color: #0ff !important;
-        text-shadow: 0 0 10px #0ff !important;
+        text-shadow: 0 0 5px #0ff !important;
     }
 
-    /* === DATA TABLES WITH GLOW === */
-    .stDataFrame {
-        background: rgba(0, 0, 0, 0.7) !important;
-        border: 1px solid #0ff !important;
-        box-shadow: 0 0 15px rgba(0, 255, 255, 0.4) !important;
-    }
-
-    /* === INPUT FIELDS WITH CYBER GLOW === */
+    /* === CYBERPUNK INPUT FIELDS === */
     .stTextInput>div>div>input,
     .stNumberInput>div>div>input,
     .stSelectbox>div>div>select {
-        background: rgba(0, 0, 0, 0.7) !important;
+        background: rgba(0, 0, 0, 0.5) !important;
         border: 1px solid #0ff !important;
         color: #0ff !important;
-        border-radius: 5px !important;
-        box-shadow: 0 0 10px rgba(0, 255, 255, 0.2) !important;
-        transition: all 0.3s !important;
+        border-radius: 0 !important;
+        font-family: 'Courier New', monospace !important;
+        padding: 8px 12px !important;
     }
 
     .stTextInput>div>div>input:focus,
     .stNumberInput>div>div>input:focus,
     .stSelectbox>div>div>select:focus {
         border-color: #0f0 !important;
-        box-shadow: 0 0 20px rgba(0, 255, 0, 0.4) !important;
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.3) !important;
         outline: none !important;
     }
 
-    /* === CYBERPUNK ALERTS === */
+    /* === CYBER ALERTS === */
+    .stAlert {
+        font-family: 'Courier New', monospace !important;
+        border-radius: 0 !important;
+        border-left: 5px solid !important;
+    }
+
     .stAlert.success {
-        background: rgba(0, 50, 0, 0.7) !important;
-        border: 1px solid #0f0 !important;
-        box-shadow: 0 0 15px rgba(0, 255, 0, 0.3) !important;
+        background: rgba(0, 20, 0, 0.5) !important;
+        border-color: #0f0 !important;
         color: #0f0 !important;
     }
 
     .stAlert.error {
-        background: rgba(50, 0, 0, 0.7) !important;
-        border: 1px solid #f00 !important;
-        box-shadow: 0 0 15px rgba(255, 0, 0, 0.3) !important;
+        background: rgba(20, 0, 0, 0.5) !important;
+        border-color: #f00 !important;
         color: #f00 !important;
     }
 
     .stAlert.warning {
-        background: rgba(50, 50, 0, 0.7) !important;
-        border: 1px solid #ff0 !important;
-        box-shadow: 0 0 15px rgba(255, 255, 0, 0.3) !important;
+        background: rgba(20, 20, 0, 0.5) !important;
+        border-color: #ff0 !important;
         color: #ff0 !important;
     }
 
-    /* === SPINNING LOADER === */
+    /* === CYBER SPINNER === */
     .stSpinner>div {
         border-color: #0ff transparent transparent transparent !important;
-        animation: spin 1s linear infinite !important;
-        border-width: 6px !important;
+        border-width: 4px !important;
+        animation: cyber-spin 1s linear infinite !important;
     }
 
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+    @keyframes cyber-spin {
+        0% { transform: rotate(0deg); border-color: #0ff transparent transparent transparent; }
+        25% { border-color: #0f0 transparent transparent transparent; }
+        50% { border-color: #f0f transparent transparent transparent; }
+        75% { border-color: #ff0 transparent transparent transparent; }
+        100% { transform: rotate(360deg); border-color: #0ff transparent transparent transparent; }
     }
 
-    /* === GRADIENT HR === */
+    /* === CYBER DIVIDER === */
     hr {
-        height: 2px !important;
+        height: 1px !important;
         background: linear-gradient(90deg, transparent, #0ff, #0f0, #0ff, transparent) !important;
         border: none !important;
-        margin: 30px 0 !important;
+        margin: 25px 0 !important;
     }
 
-    /* === DOWNLOAD BUTTONS WITH GLITCH EFFECT === */
+    /* === CYBER TABLES === */
+    .stDataFrame {
+        background: rgba(0, 0, 0, 0.5) !important;
+        border: 1px solid #0ff !important;
+        font-family: 'Courier New', monospace !important;
+    }
+
+    /* === CYBER TOOLTIPS === */
+    .stTooltip {
+        background: rgba(0, 10, 20, 0.9) !important;
+        border: 1px solid #0ff !important;
+        color: #0ff !important;
+        font-family: 'Courier New', monospace !important;
+        border-radius: 0 !important;
+    }
+
+    /* === CYBER DOWNLOAD BUTTONS === */
     .stDownloadButton>button {
-        background: linear-gradient(45deg, #6e8efb, #a777e3) !important;
-        position: relative !important;
-        overflow: hidden !important;
+        background: transparent !important;
+        border: 1px solid #0f0 !important;
+        color: #0f0 !important;
+        font-family: 'Courier New', monospace !important;
+        border-radius: 0 !important;
+        transition: all 0.3s !important;
     }
 
-    .stDownloadButton>button::before {
-        content: 'DOWNLOAD';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(45deg, #a777e3, #6e8efb);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        transition: all 0.3s;
+    .stDownloadButton>button:hover {
+        background: rgba(0, 255, 0, 0.1) !important;
+        border-color: #0ff !important;
+        color: #0ff !important;
+        box-shadow: 0 0 10px rgba(0, 255, 255, 0.3) !important;
     }
 
-    .stDownloadButton>button:hover::before {
-        opacity: 1;
-        animation: glitch 0.3s linear infinite;
+    /* === CYBER METRIC VALUES === */
+    .stMetric {
+        font-family: 'Courier New', monospace !important;
+        border: 1px solid #0ff !important;
+        background: rgba(0, 0, 0, 0.5) !important;
     }
 
-    @keyframes glitch {
-        0% { transform: translate(0); }
-        20% { transform: translate(-2px, 2px); }
-        40% { transform: translate(-2px, -2px); }
-        60% { transform: translate(2px, 2px); }
-        80% { transform: translate(2px, -2px); }
-        100% { transform: translate(0); }
+    /* === CYBER CHART CONTAINERS === */
+    .plot-container {
+        background: rgba(0, 0, 0, 0.5) !important;
+        border: 1px solid #0ff !important;
+        padding: 15px !important;
+        margin-bottom: 20px !important;
+    }
+
+    /* === CYBER CODE BLOCKS === */
+    .stCodeBlock {
+        background: rgba(0, 0, 0, 0.7) !important;
+        border: 1px solid #0f0 !important;
+        font-family: 'Courier New', monospace !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- CYBERPUNK FOOTER ---
+# --- ULTRA CYBER FOOTER ---
 st.markdown("""
 <div class="footer">
-    <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
-        <span>MADE WITH <span style="color: #f00;">♥</span> BY GEABRAL MULUGETA</span>
-        <span>|</span>
-        <a href="https://github.com/yourusername" target="_blank" style="text-decoration: none;">
-            <span style="font-family: 'Courier New', monospace;">[ https://github.com/gghhxx11299 ]</span>
-        </a>
-        <span>|</span>
-        <a href="https://linkedin.com/in/yourprofile" target="_blank" style="text-decoration: none;">
-            <span style="font-family: 'Courier New', monospace;">[ https://www.linkedin.com/in/geabral-mulugeta-334358327/ ]</span>
-        </a>
-        <span>|</span>
-        <span style="font-family: 'Courier New', monospace;">[ v1.0.0 ]</span>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <span style="color: #0ff;">SYSTEM_OPERATOR: </span>
+            <span style="color: #0f0;">GEABRAL_MULUGETA</span>
+        </div>
+        <div>
+            <span style="color: #0ff;">VERSION: </span>
+            <span style="color: #0f0;">v2.3.7</span>
+        </div>
+        <div>
+            <span style="color: #0ff;">NETWORK: </span>
+            <a href="https://github.com/gghhxx11299" target="_blank" style="color: #0f0;">[GITHUB_NODE]</a>
+            <span style="color: #0ff;"> | </span>
+            <a href="https://www.linkedin.com/in/geabral-mulugeta-334358327/" target="_blank" style="color: #0f0;">[LINKEDIN_HUB]</a>
+        </div>
     </div>
-    <div style="margin-top: 10px; font-size: 12px;">
-        <span style="font-family: 'Courier New', monospace;">SYSTEM STATUS: ONLINE</span>
-        <span style="display: inline-block; width: 10px; height: 10px; background: #0f0; border-radius: 50%; margin-left: 5px; animation: status-pulse 1s infinite alternate;"></span>
+    <div style="margin-top: 10px; display: flex; justify-content: center; align-items: center;">
+        <span style="color: #0ff;">STATUS: </span>
+        <span style="display: inline-block; width: 10px; height: 10px; background: #0f0; margin: 0 5px; animation: pulse 1s infinite alternate;"></span>
+        <span style="color: #0f0;">ONLINE</span>
+        <span style="color: #0ff; margin-left: 15px;">LAST_UPDATE: </span>
+        <span style="color: #0f0;">""" + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</span>
     </div>
 </div>
 
 <style>
-    @keyframes status-pulse {
-        from { opacity: 0.5; transform: scale(0.8); }
-        to { opacity: 1; transform: scale(1.2); }
+    @keyframes pulse {
+        0% { opacity: 0.3; transform: scale(0.8); }
+        100% { opacity: 1; transform: scale(1.2); }
     }
 </style>
 """, unsafe_allow_html=True)
-
-# --- Enhanced Footer ---
-st.markdown("""
-<div class="footer">
-    Made with ❤️ by Geabral Mulugeta | Options Profit & Capital Advisor | 
-    <a href="https://github.com/yourusername" target="_blank">GitHub</a> | 
-    <a href="https://linkedin.com/in/yourprofile" target="_blank">LinkedIn</a>
-</div>
-""", unsafe_allow_html=True)
-
-# [Rest of your existing code remains exactly the same...]
-# The sector ETFs map, pricing models functions, Greeks calculations, 
-# implied volatility, market data functions, volatility analysis, 
-# reporting functions, and the main() function all stay unchanged.
-
-# --- Sector ETFs ---
 SECTOR_MAP = {
     "technology": ["XLK", "VGT", "QTEC"],
     "financial": ["XLF", "VFH", "IYF"],
