@@ -18,113 +18,184 @@ from plotly.subplots import make_subplots
 # --- Extensive Custom CSS for styling ---
 # --- EXTREME CSS STYLING ---
 # --- ULTRA CYBERPUNK CSS STYLING ---
+# --- Enhanced Cyberpunk CSS with Better Layout ---
 st.markdown("""
 <style>
-    /* === CYBERPUNK BACKGROUND === */
+    /* === CYBERPUNK BASE === */
     body {
-        background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%) !important;
+        background: radial-gradient(circle at center, #0f0f1a 0%, #050510 100%) !important;
         color: #0ff !important;
         font-family: 'Courier New', monospace !important;
+        overflow-x: hidden !important;
     }
 
-    /* === TERMINAL-LIKE MAIN CONTAINER === */
+    /* === MAIN CONTAINER WITH NEON GLOW === */
     .main {
-        background: rgba(10, 10, 20, 0.8) !important;
-        backdrop-filter: blur(15px) !important;
+        background: rgba(10, 10, 20, 0.85) !important;
+        backdrop-filter: blur(12px) !important;
         border: 1px solid #0ff !important;
         box-shadow: 
-            0 0 20px rgba(0, 255, 255, 0.3),
-            inset 0 0 20px rgba(0, 255, 255, 0.1) !important;
-        border-radius: 5px !important;
-        padding: 20px !important;
+            0 0 25px rgba(0, 255, 255, 0.4),
+            inset 0 0 15px rgba(0, 255, 255, 0.2) !important;
+        border-radius: 0 !important;
+        padding: 2rem !important;
+        margin: 0 auto !important;
+        max-width: 95% !important;
     }
 
-    /* === CYBER TITLE WITH SCAN LINE EFFECT === */
+    /* === CYBER TITLE WITH ANIMATED GLITCH EFFECT === */
     .stApp h1 {
         color: #0ff !important;
         text-shadow: 
-            0 0 5px #0ff,
-            0 0 10px #0ff,
-            0 0 20px rgba(0, 255, 255, 0.5) !important;
+            0 0 8px #0ff,
+            0 0 15px #0ff,
+            0 0 30px rgba(0, 255, 255, 0.7) !important;
         font-family: 'Courier New', monospace !important;
         font-weight: bold !important;
-        letter-spacing: 2px !important;
+        letter-spacing: 3px !important;
         position: relative !important;
-        padding-bottom: 10px !important;
-        border-bottom: 1px solid #0ff !important;
-        animation: scanline 8s linear infinite !important;
+        padding-bottom: 15px !important;
+        border-bottom: 2px solid #0ff !important;
+        animation: glitch 5s linear infinite !important;
     }
 
-    @keyframes scanline {
-        0% { background: linear-gradient(to bottom, transparent 95%, rgba(0, 255, 255, 0.1) 95%) !important; }
-        100% { background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 255, 0.1) 0%) !important; }
+    @keyframes glitch {
+        0%, 100% { text-shadow: 0 0 8px #0ff, 0 0 15px #0ff; transform: translateX(0); }
+        1% { transform: translateX(-2px); }
+        2% { transform: translateX(2px); }
+        3% { transform: translateX(0); }
+        98% { text-shadow: 0 0 8px #0ff, 0 0 15px #0ff, 0 0 20px #f0f; }
     }
 
     /* === NEON BUTTONS WITH CIRCUIT BOARD EFFECT === */
     .stButton>button {
-        background: transparent !important;
+        background: linear-gradient(135deg, rgba(0,255,255,0.1) 0%, rgba(0,0,0,0.5) 100%) !important;
         border: 2px solid #0ff !important;
         color: #0ff !important;
         border-radius: 0 !important;
-        padding: 10px 25px !important;
+        padding: 12px 30px !important;
         font-family: 'Courier New', monospace !important;
         font-weight: bold !important;
-        text-transform: uppercase !important;
         letter-spacing: 1px !important;
         position: relative !important;
         overflow: hidden !important;
-        transition: all 0.3s !important;
+        transition: all 0.4s !important;
         box-shadow: 
-            0 0 10px rgba(0, 255, 255, 0.3),
-            inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
+            0 0 15px rgba(0, 255, 255, 0.4),
+            inset 0 0 10px rgba(0, 255, 255, 0.2) !important;
+        text-transform: uppercase !important;
     }
 
     .stButton>button:hover {
-        background: rgba(0, 255, 255, 0.1) !important;
-        text-shadow: 0 0 5px #0ff !important;
+        background: linear-gradient(135deg, rgba(0,255,255,0.2) 0%, rgba(0,0,0,0.6) 100%) !important;
+        text-shadow: 0 0 8px #0ff !important;
         box-shadow: 
-            0 0 20px rgba(0, 255, 255, 0.5),
-            inset 0 0 15px rgba(0, 255, 255, 0.2) !important;
-        transform: translateY(-2px) !important;
+            0 0 25px rgba(0, 255, 255, 0.6),
+            inset 0 0 15px rgba(0, 255, 255, 0.3) !important;
+        transform: translateY(-3px) !important;
     }
 
-    .stButton>button:active {
-        transform: translateY(1px) !important;
+    /* === DATA CONTAINERS WITH HOLOGRAM EFFECT === */
+    .stDataFrame, .stMetric, .stAlert {
+        background: rgba(5, 5, 15, 0.7) !important;
+        border: 1px solid #0ff !important;
         box-shadow: 
-            0 0 5px rgba(0, 255, 255, 0.3),
-            inset 0 0 5px rgba(0, 255, 255, 0.1) !important;
+            0 0 15px rgba(0, 255, 255, 0.3),
+            inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
+        border-radius: 0 !important;
+        font-family: 'Courier New', monospace !important;
+        margin-bottom: 1.5rem !important;
     }
 
-    .stButton>button::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(0, 255, 255, 0.2),
-            transparent
-        );
-        transition: 0.5s;
+    /* === RESPONSIVE GRID LAYOUT === */
+    .stContainer {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 1.5rem !important;
+        margin-bottom: 2rem !important;
     }
 
-    .stButton>button:hover::before {
-        left: 100%;
+    .stColumn {
+        flex: 1 !important;
+        min-width: 300px !important;
+        padding: 1.5rem !important;
+        background: rgba(15, 15, 30, 0.6) !important;
+        border: 1px solid rgba(0, 255, 255, 0.3) !important;
+        box-shadow: 0 0 15px rgba(0, 255, 255, 0.2) !important;
     }
 
-    /* === DATA CARDS WITH CIRCUIT BOARD LINES === */
+    /* === CHARTS CONTAINER === */
+    .plot-container {
+        width: 100% !important;
+        margin: 0 auto !important;
+        padding: 1rem !important;
+        background: rgba(0, 5, 10, 0.7) !important;
+        border: 1px solid #0ff !important;
+        box-shadow: 
+            0 0 20px rgba(0, 255, 255, 0.3),
+            inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
+        margin-bottom: 2rem !important;
+    }
+
+    /* === EXPANDERS WITH CIRCUIT LINES === */
+    .st-expander {
+        background: rgba(10, 15, 25, 0.8) !important;
+        border: 1px solid #0f0 !important;
+        border-radius: 0 !important;
+        box-shadow: 
+            0 0 15px rgba(0, 255, 0, 0.3),
+            inset 0 0 10px rgba(0, 255, 0, 0.1) !important;
+        margin-bottom: 1.5rem !important;
+    }
+
+    .st-expander .streamlit-expanderHeader {
+        color: #0f0 !important;
+        font-family: 'Courier New', monospace !important;
+        font-weight: bold !important;
+        text-shadow: 0 0 8px rgba(0, 255, 0, 0.5) !important;
+        padding: 1rem !important;
+    }
+
+    /* === SCROLLBAR STYLING === */
+    ::-webkit-scrollbar {
+        width: 12px !important;
+        height: 12px !important;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.4) !important;
+        border-radius: 0 !important;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(#0ff, #0f0) !important;
+        border-radius: 0 !important;
+        border: 2px solid rgba(0, 255, 255, 0.5) !important;
+    }
+
+    /* === INPUT FIELDS === */
+    .stTextInput>div>div>input,
+    .stNumberInput>div>div>input,
+    .stSelectbox>div>div>select {
+        background: rgba(0, 5, 10, 0.7) !important;
+        border: 1px solid #0ff !important;
+        color: #0ff !important;
+        border-radius: 0 !important;
+        font-family: 'Courier New', monospace !important;
+        padding: 10px 15px !important;
+        box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
+    }
+
+    /* === METRIC CARDS === */
     .metric-card {
-        background: rgba(10, 10, 20, 0.7) !important;
+        background: linear-gradient(135deg, rgba(0,10,20,0.7) 0%, rgba(0,0,0,0.8) 100%) !important;
         border: 1px solid #0ff !important;
         border-radius: 0 !important;
         box-shadow: 
-            0 0 15px rgba(0, 255, 255, 0.2),
-            inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
-        padding: 20px !important;
-        margin-bottom: 20px !important;
+            0 0 20px rgba(0, 255, 255, 0.3),
+            inset 0 0 15px rgba(0, 255, 255, 0.1) !important;
+        padding: 1.5rem !important;
+        margin-bottom: 1.5rem !important;
         position: relative !important;
         overflow: hidden !important;
     }
@@ -135,238 +206,89 @@ st.markdown("""
         top: 0;
         left: 0;
         right: 0;
-        height: 1px;
+        height: 2px;
         background: linear-gradient(90deg, transparent, #0ff, transparent);
         animation: circuit 3s linear infinite;
     }
 
+    /* === FOOTER WITH STATUS GRID === */
+    .footer {
+        background: linear-gradient(to right, rgba(0,5,10,0.9) 0%, rgba(0,10,20,0.9) 100%) !important;
+        border-top: 2px solid #0ff !important;
+        color: #0ff !important;
+        font-family: 'Courier New', monospace !important;
+        padding: 1.5rem !important;
+        box-shadow: 0 -5px 25px rgba(0, 255, 255, 0.3) !important;
+        margin-top: 3rem !important;
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+        gap: 1rem !important;
+    }
+
+    /* === RESPONSIVE ADJUSTMENTS === */
+    @media (max-width: 768px) {
+        .main {
+            padding: 1rem !important;
+        }
+        .stColumn {
+            min-width: 100% !important;
+        }
+        .footer {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    /* === ANIMATIONS === */
     @keyframes circuit {
         0% { transform: translateX(-100%); }
         100% { transform: translateX(100%); }
     }
 
-    /* === TERMINAL-STYLE EXPANDERS === */
-    .st-expander {
-        background: rgba(10, 10, 20, 0.7) !important;
-        border: 1px solid #0f0 !important;
-        border-radius: 0 !important;
-        box-shadow: 
-            0 0 10px rgba(0, 255, 0, 0.2),
-            inset 0 0 5px rgba(0, 255, 0, 0.1) !important;
-    }
-
-    .st-expander .streamlit-expanderHeader {
-        color: #0f0 !important;
-        font-family: 'Courier New', monospace !important;
-        font-weight: bold !important;
-        text-shadow: 0 0 5px rgba(0, 255, 0, 0.5) !important;
-    }
-
-    .st-expander .streamlit-expanderContent {
-        background: rgba(0, 20, 10, 0.3) !important;
-        border-top: 1px dashed #0f0 !important;
-        font-family: 'Courier New', monospace !important;
-    }
-
-    /* === CYBERPUNK SCROLLBAR === */
-    ::-webkit-scrollbar {
-        width: 10px !important;
-        height: 10px !important;
-    }
-
-    ::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.3) !important;
-        border-radius: 0 !important;
-    }
-
-    ::-webkit-scrollbar-thumb {
-        background: linear-gradient(#0ff, #0f0) !important;
-        border-radius: 0 !important;
-        border: 1px solid rgba(0, 255, 255, 0.5) !important;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        background: linear-gradient(#0f0, #0ff) !important;
-    }
-
-    /* === CYBER FOOTER WITH STATUS INDICATOR === */
-    .footer {
-        background: rgba(0, 0, 10, 0.8) !important;
-        border-top: 1px solid #0ff !important;
-        color: #0ff !important;
-        font-family: 'Courier New', monospace !important;
-        padding: 15px !important;
-        box-shadow: 0 -5px 20px rgba(0, 255, 255, 0.2) !important;
-    }
-
-    .footer a {
-        color: #0f0 !important;
-        text-decoration: none !important;
-        transition: all 0.3s !important;
-    }
-
-    .footer a:hover {
-        color: #0ff !important;
-        text-shadow: 0 0 5px #0ff !important;
-    }
-
-    /* === CYBERPUNK INPUT FIELDS === */
-    .stTextInput>div>div>input,
-    .stNumberInput>div>div>input,
-    .stSelectbox>div>div>select {
-        background: rgba(0, 0, 0, 0.5) !important;
-        border: 1px solid #0ff !important;
-        color: #0ff !important;
-        border-radius: 0 !important;
-        font-family: 'Courier New', monospace !important;
-        padding: 8px 12px !important;
-    }
-
-    .stTextInput>div>div>input:focus,
-    .stNumberInput>div>div>input:focus,
-    .stSelectbox>div>div>select:focus {
-        border-color: #0f0 !important;
-        box-shadow: 0 0 10px rgba(0, 255, 0, 0.3) !important;
-        outline: none !important;
-    }
-
-    /* === CYBER ALERTS === */
-    .stAlert {
-        font-family: 'Courier New', monospace !important;
-        border-radius: 0 !important;
-        border-left: 5px solid !important;
-    }
-
-    .stAlert.success {
-        background: rgba(0, 20, 0, 0.5) !important;
-        border-color: #0f0 !important;
-        color: #0f0 !important;
-    }
-
-    .stAlert.error {
-        background: rgba(20, 0, 0, 0.5) !important;
-        border-color: #f00 !important;
-        color: #f00 !important;
-    }
-
-    .stAlert.warning {
-        background: rgba(20, 20, 0, 0.5) !important;
-        border-color: #ff0 !important;
-        color: #ff0 !important;
-    }
-
-    /* === CYBER SPINNER === */
-    .stSpinner>div {
-        border-color: #0ff transparent transparent transparent !important;
-        border-width: 4px !important;
-        animation: cyber-spin 1s linear infinite !important;
-    }
-
-    @keyframes cyber-spin {
-        0% { transform: rotate(0deg); border-color: #0ff transparent transparent transparent; }
-        25% { border-color: #0f0 transparent transparent transparent; }
-        50% { border-color: #f0f transparent transparent transparent; }
-        75% { border-color: #ff0 transparent transparent transparent; }
-        100% { transform: rotate(360deg); border-color: #0ff transparent transparent transparent; }
-    }
-
-    /* === CYBER DIVIDER === */
-    hr {
-        height: 1px !important;
-        background: linear-gradient(90deg, transparent, #0ff, #0f0, #0ff, transparent) !important;
-        border: none !important;
-        margin: 25px 0 !important;
-    }
-
-    /* === CYBER TABLES === */
-    .stDataFrame {
-        background: rgba(0, 0, 0, 0.5) !important;
-        border: 1px solid #0ff !important;
-        font-family: 'Courier New', monospace !important;
-    }
-
-    /* === CYBER TOOLTIPS === */
-    .stTooltip {
-        background: rgba(0, 10, 20, 0.9) !important;
-        border: 1px solid #0ff !important;
-        color: #0ff !important;
-        font-family: 'Courier New', monospace !important;
-        border-radius: 0 !important;
-    }
-
-    /* === CYBER DOWNLOAD BUTTONS === */
-    .stDownloadButton>button {
-        background: transparent !important;
-        border: 1px solid #0f0 !important;
-        color: #0f0 !important;
-        font-family: 'Courier New', monospace !important;
-        border-radius: 0 !important;
-        transition: all 0.3s !important;
-    }
-
-    .stDownloadButton>button:hover {
-        background: rgba(0, 255, 0, 0.1) !important;
-        border-color: #0ff !important;
-        color: #0ff !important;
-        box-shadow: 0 0 10px rgba(0, 255, 255, 0.3) !important;
-    }
-
-    /* === CYBER METRIC VALUES === */
-    .stMetric {
-        font-family: 'Courier New', monospace !important;
-        border: 1px solid #0ff !important;
-        background: rgba(0, 0, 0, 0.5) !important;
-    }
-
-    /* === CYBER CHART CONTAINERS === */
-    .plot-container {
-        background: rgba(0, 0, 0, 0.5) !important;
-        border: 1px solid #0ff !important;
-        padding: 15px !important;
-        margin-bottom: 20px !important;
-    }
-
-    /* === CYBER CODE BLOCKS === */
-    .stCodeBlock {
-        background: rgba(0, 0, 0, 0.7) !important;
-        border: 1px solid #0f0 !important;
-        font-family: 'Courier New', monospace !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# --- ULTRA CYBER FOOTER ---
-st.markdown("""
-<div class="footer">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-            <span style="color: #0ff;">SYSTEM_OPERATOR: </span>
-            <span style="color: #0f0;">GEABRAL_MULUGETA</span>
-        </div>
-        <div>
-            <span style="color: #0ff;">VERSION: </span>
-            <span style="color: #0f0;">v2.3.7</span>
-        </div>
-        <div>
-            <span style="color: #0ff;">NETWORK: </span>
-            <a href="https://github.com/gghhxx11299" target="_blank" style="color: #0f0;">[GITHUB_NODE]</a>
-            <span style="color: #0ff;"> | </span>
-            <a href="https://www.linkedin.com/in/geabral-mulugeta-334358327/" target="_blank" style="color: #0f0;">[LINKEDIN_HUB]</a>
-        </div>
-    </div>
-    <div style="margin-top: 10px; display: flex; justify-content: center; align-items: center;">
-        <span style="color: #0ff;">STATUS: </span>
-        <span style="display: inline-block; width: 10px; height: 10px; background: #0f0; margin: 0 5px; animation: pulse 1s infinite alternate;"></span>
-        <span style="color: #0f0;">ONLINE</span>
-        <span style="color: #0ff; margin-left: 15px;">LAST_UPDATE: </span>
-        <span style="color: #0f0;">""" + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</span>
-    </div>
-</div>
-
-<style>
     @keyframes pulse {
         0% { opacity: 0.3; transform: scale(0.8); }
         100% { opacity: 1; transform: scale(1.2); }
+    }
+
+    @keyframes hologram {
+        0% { opacity: 0.8; }
+        50% { opacity: 1; }
+        100% { opacity: 0.8; }
+    }
+
+    /* === TABLES === */
+    .stDataFrame table {
+        width: 100% !important;
+    }
+
+    .stDataFrame th {
+        background: rgba(0, 255, 255, 0.1) !important;
+        color: #0ff !important;
+        font-weight: bold !important;
+    }
+
+    .stDataFrame td {
+        background: rgba(0, 10, 20, 0.5) !important;
+        color: #0ff !important;
+        border: 1px solid rgba(0, 255, 255, 0.2) !important;
+    }
+
+    /* === DOWNLOAD BUTTONS === */
+    .stDownloadButton>button {
+        background: linear-gradient(135deg, rgba(0,255,0,0.1) 0%, rgba(0,0,0,0.5) 100%) !important;
+        border: 2px solid #0f0 !important;
+        color: #0f0 !important;
+        font-family: 'Courier New', monospace !important;
+        border-radius: 0 !important;
+        transition: all 0.4s !important;
+        text-transform: uppercase !important;
+        letter-spacing: 1px !important;
+    }
+
+    .stDownloadButton>button:hover {
+        background: linear-gradient(135deg, rgba(0,255,0,0.2) 0%, rgba(0,0,0,0.6) 100%) !important;
+        border-color: #0ff !important;
+        color: #0ff !important;
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.4) !important;
     }
 </style>
 """, unsafe_allow_html=True)
