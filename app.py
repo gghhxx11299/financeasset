@@ -3,7 +3,6 @@ from fpdf import FPDF
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
-
 from datetime import datetime
 import yfinance as yf
 import math
@@ -19,51 +18,323 @@ from plotly.subplots import make_subplots
 # --- Extensive Custom CSS for styling ---
 # --- EXTREME CSS STYLING ---
 # --- ULTRA CYBERPUNK CSS STYLING ---
-# Add this to your CSS section
 st.markdown("""
 <style>
-    /* === MAIN CONTENT CONTAINER === */
-    .main .block-container {
-        padding: 2rem 1rem 6rem !important;
-        max-width: 95% !important;
+    /* === CYBERPUNK BACKGROUND === */
+    body {
+        background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%) !important;
+        color: #0ff !important;
+        font-family: 'Courier New', monospace !important;
     }
-    
-    /* === FULL WIDTH COLUMNS === */
-    .stContainer {
-        width: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
+
+    /* === TERMINAL-LIKE MAIN CONTAINER === */
+    .main {
+        background: rgba(10, 10, 20, 0.8) !important;
+        backdrop-filter: blur(15px) !important;
+        border: 1px solid #0ff !important;
+        box-shadow: 
+            0 0 20px rgba(0, 255, 255, 0.3),
+            inset 0 0 20px rgba(0, 255, 255, 0.1) !important;
+        border-radius: 5px !important;
+        padding: 20px !important;
     }
-    
-    /* === SCROLLABLE DATA CONTAINERS === */
-    .stDataFrame {
-        max-height: 400px !important;
-        overflow-y: auto !important;
+
+    /* === CYBER TITLE WITH SCAN LINE EFFECT === */
+    .stApp h1 {
+        color: #0ff !important;
+        text-shadow: 
+            0 0 5px #0ff,
+            0 0 10px #0ff,
+            0 0 20px rgba(0, 255, 255, 0.5) !important;
+        font-family: 'Courier New', monospace !important;
+        font-weight: bold !important;
+        letter-spacing: 2px !important;
+        position: relative !important;
+        padding-bottom: 10px !important;
+        border-bottom: 1px solid #0ff !important;
+        animation: scanline 8s linear infinite !important;
     }
-    
-    /* === RESPONSIVE COLUMNS === */
-    @media (max-width: 992px) {
-        .stContainer > div {
-            flex-direction: column !important;
-        }
-        .stContainer > div > div {
-            width: 100% !important;
-        }
+
+    @keyframes scanline {
+        0% { background: linear-gradient(to bottom, transparent 95%, rgba(0, 255, 255, 0.1) 95%) !important; }
+        100% { background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 255, 0.1) 0%) !important; }
     }
-    
-    /* === FIXED FOOTER SPACING === */
-    .footer {
-        position: fixed;
-        bottom: 0;
+
+    /* === NEON BUTTONS WITH CIRCUIT BOARD EFFECT === */
+    .stButton>button {
+        background: transparent !important;
+        border: 2px solid #0ff !important;
+        color: #0ff !important;
+        border-radius: 0 !important;
+        padding: 10px 25px !important;
+        font-family: 'Courier New', monospace !important;
+        font-weight: bold !important;
+        text-transform: uppercase !important;
+        letter-spacing: 1px !important;
+        position: relative !important;
+        overflow: hidden !important;
+        transition: all 0.3s !important;
+        box-shadow: 
+            0 0 10px rgba(0, 255, 255, 0.3),
+            inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
+    }
+
+    .stButton>button:hover {
+        background: rgba(0, 255, 255, 0.1) !important;
+        text-shadow: 0 0 5px #0ff !important;
+        box-shadow: 
+            0 0 20px rgba(0, 255, 255, 0.5),
+            inset 0 0 15px rgba(0, 255, 255, 0.2) !important;
+        transform: translateY(-2px) !important;
+    }
+
+    .stButton>button:active {
+        transform: translateY(1px) !important;
+        box-shadow: 
+            0 0 5px rgba(0, 255, 255, 0.3),
+            inset 0 0 5px rgba(0, 255, 255, 0.1) !important;
+    }
+
+    .stButton>button::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(0, 255, 255, 0.2),
+            transparent
+        );
+        transition: 0.5s;
+    }
+
+    .stButton>button:hover::before {
+        left: 100%;
+    }
+
+    /* === DATA CARDS WITH CIRCUIT BOARD LINES === */
+    .metric-card {
+        background: rgba(10, 10, 20, 0.7) !important;
+        border: 1px solid #0ff !important;
+        border-radius: 0 !important;
+        box-shadow: 
+            0 0 15px rgba(0, 255, 255, 0.2),
+            inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
+        padding: 20px !important;
+        margin-bottom: 20px !important;
+        position: relative !important;
+        overflow: hidden !important;
+    }
+
+    .metric-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
         left: 0;
         right: 0;
-        z-index: 999;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #0ff, transparent);
+        animation: circuit 3s linear infinite;
     }
-    .main {
-        padding-bottom: 80px !important;
+
+    @keyframes circuit {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+
+    /* === TERMINAL-STYLE EXPANDERS === */
+    .st-expander {
+        background: rgba(10, 10, 20, 0.7) !important;
+        border: 1px solid #0f0 !important;
+        border-radius: 0 !important;
+        box-shadow: 
+            0 0 10px rgba(0, 255, 0, 0.2),
+            inset 0 0 5px rgba(0, 255, 0, 0.1) !important;
+    }
+
+    .st-expander .streamlit-expanderHeader {
+        color: #0f0 !important;
+        font-family: 'Courier New', monospace !important;
+        font-weight: bold !important;
+        text-shadow: 0 0 5px rgba(0, 255, 0, 0.5) !important;
+    }
+
+    .st-expander .streamlit-expanderContent {
+        background: rgba(0, 20, 10, 0.3) !important;
+        border-top: 1px dashed #0f0 !important;
+        font-family: 'Courier New', monospace !important;
+    }
+
+    /* === CYBERPUNK SCROLLBAR === */
+    ::-webkit-scrollbar {
+        width: 10px !important;
+        height: 10px !important;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.3) !important;
+        border-radius: 0 !important;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(#0ff, #0f0) !important;
+        border-radius: 0 !important;
+        border: 1px solid rgba(0, 255, 255, 0.5) !important;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(#0f0, #0ff) !important;
+    }
+
+    /* === CYBER FOOTER WITH STATUS INDICATOR === */
+    .footer {
+        background: rgba(0, 0, 10, 0.8) !important;
+        border-top: 1px solid #0ff !important;
+        color: #0ff !important;
+        font-family: 'Courier New', monospace !important;
+        padding: 15px !important;
+        box-shadow: 0 -5px 20px rgba(0, 255, 255, 0.2) !important;
+    }
+
+    .footer a {
+        color: #0f0 !important;
+        text-decoration: none !important;
+        transition: all 0.3s !important;
+    }
+
+    .footer a:hover {
+        color: #0ff !important;
+        text-shadow: 0 0 5px #0ff !important;
+    }
+
+    /* === CYBERPUNK INPUT FIELDS === */
+    .stTextInput>div>div>input,
+    .stNumberInput>div>div>input,
+    .stSelectbox>div>div>select {
+        background: rgba(0, 0, 0, 0.5) !important;
+        border: 1px solid #0ff !important;
+        color: #0ff !important;
+        border-radius: 0 !important;
+        font-family: 'Courier New', monospace !important;
+        padding: 8px 12px !important;
+    }
+
+    .stTextInput>div>div>input:focus,
+    .stNumberInput>div>div>input:focus,
+    .stSelectbox>div>div>select:focus {
+        border-color: #0f0 !important;
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.3) !important;
+        outline: none !important;
+    }
+
+    /* === CYBER ALERTS === */
+    .stAlert {
+        font-family: 'Courier New', monospace !important;
+        border-radius: 0 !important;
+        border-left: 5px solid !important;
+    }
+
+    .stAlert.success {
+        background: rgba(0, 20, 0, 0.5) !important;
+        border-color: #0f0 !important;
+        color: #0f0 !important;
+    }
+
+    .stAlert.error {
+        background: rgba(20, 0, 0, 0.5) !important;
+        border-color: #f00 !important;
+        color: #f00 !important;
+    }
+
+    .stAlert.warning {
+        background: rgba(20, 20, 0, 0.5) !important;
+        border-color: #ff0 !important;
+        color: #ff0 !important;
+    }
+
+    /* === CYBER SPINNER === */
+    .stSpinner>div {
+        border-color: #0ff transparent transparent transparent !important;
+        border-width: 4px !important;
+        animation: cyber-spin 1s linear infinite !important;
+    }
+
+    @keyframes cyber-spin {
+        0% { transform: rotate(0deg); border-color: #0ff transparent transparent transparent; }
+        25% { border-color: #0f0 transparent transparent transparent; }
+        50% { border-color: #f0f transparent transparent transparent; }
+        75% { border-color: #ff0 transparent transparent transparent; }
+        100% { transform: rotate(360deg); border-color: #0ff transparent transparent transparent; }
+    }
+
+    /* === CYBER DIVIDER === */
+    hr {
+        height: 1px !important;
+        background: linear-gradient(90deg, transparent, #0ff, #0f0, #0ff, transparent) !important;
+        border: none !important;
+        margin: 25px 0 !important;
+    }
+
+    /* === CYBER TABLES === */
+    .stDataFrame {
+        background: rgba(0, 0, 0, 0.5) !important;
+        border: 1px solid #0ff !important;
+        font-family: 'Courier New', monospace !important;
+    }
+
+    /* === CYBER TOOLTIPS === */
+    .stTooltip {
+        background: rgba(0, 10, 20, 0.9) !important;
+        border: 1px solid #0ff !important;
+        color: #0ff !important;
+        font-family: 'Courier New', monospace !important;
+        border-radius: 0 !important;
+    }
+
+    /* === CYBER DOWNLOAD BUTTONS === */
+    .stDownloadButton>button {
+        background: transparent !important;
+        border: 1px solid #0f0 !important;
+        color: #0f0 !important;
+        font-family: 'Courier New', monospace !important;
+        border-radius: 0 !important;
+        transition: all 0.3s !important;
+    }
+
+    .stDownloadButton>button:hover {
+        background: rgba(0, 255, 0, 0.1) !important;
+        border-color: #0ff !important;
+        color: #0ff !important;
+        box-shadow: 0 0 10px rgba(0, 255, 255, 0.3) !important;
+    }
+
+    /* === CYBER METRIC VALUES === */
+    .stMetric {
+        font-family: 'Courier New', monospace !important;
+        border: 1px solid #0ff !important;
+        background: rgba(0, 0, 0, 0.5) !important;
+    }
+
+    /* === CYBER CHART CONTAINERS === */
+    .plot-container {
+        background: rgba(0, 0, 0, 0.5) !important;
+        border: 1px solid #0ff !important;
+        padding: 15px !important;
+        margin-bottom: 20px !important;
+    }
+
+    /* === CYBER CODE BLOCKS === */
+    .stCodeBlock {
+        background: rgba(0, 0, 0, 0.7) !important;
+        border: 1px solid #0f0 !important;
+        font-family: 'Courier New', monospace !important;
     }
 </style>
 """, unsafe_allow_html=True)
+
 # --- ULTRA CYBER FOOTER ---
 st.markdown("""
 <div class="footer">
@@ -830,62 +1101,50 @@ def main():
                 st.error(f"Calculation failed: {str(e)}")
                 st.session_state.calculation_done = False
 
-        # Display results if calculation is done
+    # Display results if calculation is done
     if st.session_state.calculation_done:
         st.markdown("---")
         st.markdown("## Analysis Results")
         
-        # Create a container with proper spacing
+        # Metrics in cards
         with st.container():
-            # Use columns with proper width ratios
-            col1, col2, col3 = st.columns([1, 1, 0.8], gap="medium")
-            
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.markdown("### Option Greeks")
                 if st.session_state.greeks_df is not None:
-                    # Add container with fixed height and scroll
-                    with st.container(height=300):
-                        st.dataframe(st.session_state.greeks_df, use_container_width=True)
+                    st.dataframe(st.session_state.greeks_df, use_container_width=True)
             
             with col2:
                 st.markdown("### Summary Metrics")
                 if st.session_state.summary_info is not None:
-                    # Add container with fixed height and scroll
-                    with st.container(height=300):
-                        st.dataframe(st.session_state.summary_info, use_container_width=True)
+                    st.dataframe(st.session_state.summary_info, use_container_width=True)
             
             with col3:
                 if st.session_state.iv_percentile is not None:
                     st.markdown("### Volatility Context")
-                    # Use card-style container
-                    with st.container():
-                        st.metric(
-                            label="Implied Volatility Percentile",
-                            value=f"{st.session_state.iv_percentile:.0f}th percentile",
-                            help="How current IV compares to 1-year history (higher = more extreme)"
-                        )
+                    st.metric(
+                        label="Implied Volatility Percentile",
+                        value=f"{st.session_state.iv_percentile:.0f}th percentile",
+                        help="How current IV compares to 1-year history (higher = more extreme)"
+                    )
         
-        # Trading Advice - make this full width
+        # Trading Advice
         st.markdown("### Trading Advice")
-        with st.expander("View detailed trading recommendations", expanded=True):
+        with st.expander("View detailed trading recommendations"):
             if st.session_state.trading_advice is not None:
-                with st.container(height=200):
-                    st.dataframe(st.session_state.trading_advice, use_container_width=True)
+                st.dataframe(st.session_state.trading_advice, use_container_width=True)
         
-        # Plots - ensure they're properly contained
+        # Plots
         if st.session_state.plot_fig is not None:
-            with st.container():
-                st.plotly_chart(st.session_state.plot_fig, use_container_width=True)
+            st.plotly_chart(st.session_state.plot_fig, use_container_width=True)
         
         if st.session_state.volume_fig is not None:
-            with st.container():
-                st.plotly_chart(st.session_state.volume_fig, use_container_width=True)
+            st.plotly_chart(st.session_state.volume_fig, use_container_width=True)
         
         if st.session_state.bs_sensitivities_fig is not None:
-            with st.container():
-                st.plotly_chart(st.session_state.bs_sensitivities_fig, use_container_width=True)
+            st.plotly_chart(st.session_state.bs_sensitivities_fig, use_container_width=True)
         
-        # Export buttons at the bottom
+        # Export buttons
         st.markdown("---")
         col1, col2 = st.columns(2)
         
@@ -895,8 +1154,7 @@ def main():
                     label="Download CSV Report",
                     data=st.session_state.export_csv,
                     file_name="options_analysis_report.csv",
-                    mime="text/csv",
-                    use_container_width=True
+                    mime="text/csv"
                 )
         
         with col2:
@@ -905,6 +1163,8 @@ def main():
                     label="Download PDF Report",
                     data=st.session_state.export_pdf,
                     file_name="options_analysis_report.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
+                    mime="application/pdf"
                 )
+
+if __name__ == "__main__":
+    main()
