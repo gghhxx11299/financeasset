@@ -1,9 +1,11 @@
+this is the code 
+
 import os
 from fpdf import FPDF
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 import yfinance as yf
 import math
 import numpy as np
@@ -521,6 +523,7 @@ def get_option_market_price(ticker, option_type, strike, expiry_date):
         return None
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
+
 def get_us_10yr_treasury_yield():
     """Fetch current 10-year Treasury yield with multiple fallback options"""
     fallback_yield = 0.025  # Default fallback 2.5%
@@ -565,7 +568,6 @@ def get_us_10yr_treasury_yield():
             continue
             
     return fallback_yield
-
 # --- Volatility Analysis ---
 def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     """Calculate how current IV compares to historical levels"""
@@ -579,6 +581,7 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
 
+        
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
     fig = make_subplots(rows=3, cols=1, 
@@ -803,6 +806,8 @@ def main():
         st.session_state.bs_sensitivities_fig = None
     if "iv_percentile" not in st.session_state:
         st.session_state.iv_percentile = None
+    if "volume_fig" not in st.session_state:
+        st.session_state.volume_fig = None
     if "is_stock" not in st.session_state:
         st.session_state.is_stock = None
     if "financials_df" not in st.session_state:
@@ -817,65 +822,28 @@ def main():
             ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
             option_type = st.selectbox("Option Type", ["call", "put"])
             strike_price = st.number_input("Strike Price", min_value=0.0, value=150.0)
-            
-        with col2:
             days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
             risk_free_rate = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=0.025)
             sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
             
-        col3, col4 = st.columns(2)
-        with col3:
+        with col2:
             return_type = st.selectbox("Return Type", ["Simple", "Log"])
             comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
-            
-        with col4:
             max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
             min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
-            
-        pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
+            pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
 
-    # Display company financials immediately after ticker input
+    # Check if ticker is a stock and get financials
     if ticker:
-        with st.expander(f"Company Financials: {ticker}", expanded=True):
-            is_stock, financials_df = get_company_financials(ticker)
-            st.session_state.is_stock = is_stock
-            st.session_state.financials_df = financials_df
-            
-            if not is_stock:
-                st.warning(f"⚠️ {ticker} does not appear to be a stock. This tool works best with individual stocks.")
-            elif financials_df is not None:
-                # Display financials in a more visually appealing way
-                cols = st.columns(3)
-                for i, (metric, value) in enumerate(financials_df['Value'].items()):
-                    with cols[i % 3]:
-                        st.metric(
-                            label=metric,
-                            value=value,
-                            help=f"{metric} for {ticker}"
-                        )
-                
-                # Additional financial metrics visualization
-                try:
-                    # Get historical data for visualization
-                    hist_data = yf.download(ticker, period="1y")['Close']
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=hist_data.index,
-                        y=hist_data,
-                        mode='lines',
-                        name='Price',
-                        line=dict(color='#00FFFF')
-                    )
-                    fig.update_layout(
-                        title=f"{ticker} 1-Year Price History",
-                        xaxis_title="Date",
-                        yaxis_title="Price ($)",
-                        template="plotly_dark",
-                        margin=dict(l=20, r=20, t=40, b=20)
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"Could not display price history: {e}")
+        is_stock, financials_df = get_company_financials(ticker)
+        st.session_state.is_stock = is_stock
+        st.session_state.financials_df = financials_df
+        
+        if not is_stock:
+            st.warning(f"⚠️ {ticker} does not appear to be a stock. This tool works best with individual stocks.")
+        elif financials_df is not None:
+            with st.expander("View Company Financials", expanded=True):
+                st.dataframe(financials_df, use_container_width=True)
 
     # Calculation button
     st.markdown("---")
@@ -1020,6 +988,10 @@ def main():
                 # IV percentile analysis
                 iv_percentile = calculate_iv_percentile(ticker, iv)
                 st.session_state.iv_percentile = iv_percentile
+                
+                # Generate stock volume chart
+                volume_fig = plot_stock_volume(ticker, days_to_expiry)
+                st.session_state.volume_fig = volume_fig
 
                 # Generate trading advice
                 trading_advice = generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital)
@@ -1184,6 +1156,9 @@ def main():
         if st.session_state.plot_fig is not None:
             st.plotly_chart(st.session_state.plot_fig, use_container_width=True)
         
+        if st.session_state.volume_fig is not None:
+            st.plotly_chart(st.session_state.volume_fig, use_container_width=True)
+        
         if st.session_state.bs_sensitivities_fig is not None:
             st.plotly_chart(st.session_state.bs_sensitivities_fig, use_container_width=True)
         
@@ -1211,3 +1186,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
