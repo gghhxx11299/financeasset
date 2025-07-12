@@ -578,7 +578,6 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     except Exception as e:
         st.warning(f"Could not calculate IV percentile: {e}")
         return None
-
 def plot_stock_volume(ticker, days=30):
     """
     Plot DAILY trading volume for the last 30 trading days with cyberpunk styling.
@@ -602,7 +601,7 @@ def plot_stock_volume(ticker, days=30):
 
         # 3. Get last 'days' trading days
         volume = stock_data['Volume'].dropna().iloc[-days:]
-        if len(volume) < days // 2:
+        if len(volume) < days // 2:  # At least half the requested days
             st.warning(f"⚠️ Insufficient data (only {len(volume)} trading days)")
             return None
 
@@ -610,10 +609,6 @@ def plot_stock_volume(ticker, days=30):
         avg_volume = volume.mean()
         current_volume = volume.iloc[-1]
         ma20 = volume.rolling(20).mean().dropna()
-
-        # Extract min and max values as scalars
-        cmin_value = float(volume.min())
-        cmax_value = float(volume.max())
 
         # 5. Create figure
         fig = go.Figure()
@@ -626,11 +621,11 @@ def plot_stock_volume(ticker, days=30):
             marker=dict(
                 color=volume,
                 colorscale='tealrose',
-                cmin=cmin_value,
-                cmax=cmax_value,
+                cmin=float(volume.min()),  # scalar values here
+                cmax=float(volume.max()),
                 line=dict(width=0)
             ),
-            hovertemplate="<b>Date:</b> %{x|%b %d}<br><b>Volume:</b> %{y:,}<extra></extra>"
+            hovertemplate="<b>%{x|%b %d}</b><br>%{y:,} shares<extra></extra>"
         ))
 
         # 20-day moving average
@@ -639,7 +634,7 @@ def plot_stock_volume(ticker, days=30):
             y=ma20,
             name='20-Day MA',
             line=dict(color='#FF00FF', width=3),
-            hoverinfo='y'
+            hovertemplate="20-Day MA: %{y:,}<extra></extra>"
         ))
 
         # Current volume annotation
@@ -653,7 +648,7 @@ def plot_stock_volume(ticker, days=30):
             bgcolor='rgba(0,0,0,0.8)'
         )
 
-        # Average line
+        # Average line with annotation
         fig.add_hline(
             y=avg_volume,
             line_dash="dot",
@@ -663,7 +658,7 @@ def plot_stock_volume(ticker, days=30):
             annotation_font_color="#00FF00"
         )
 
-        # 6. Cyberpunk styling
+        # Cyberpunk styling
         fig.update_layout(
             title=f"<b>{ticker.upper()} VOLUME (LAST {days} DAYS)</b>",
             plot_bgcolor='rgba(0,0,20,0.8)',
@@ -676,7 +671,7 @@ def plot_stock_volume(ticker, days=30):
             yaxis=dict(
                 title="Shares Traded",
                 gridcolor='rgba(0,255,255,0.2)',
-                tickformat=".3s",
+                tickformat=".3s",  # Plotly-native SI format (e.g., 1.2M)
                 title_font=dict(color='cyan'),
                 tickfont=dict(color='cyan')
             ),
@@ -702,7 +697,6 @@ def plot_stock_volume(ticker, days=30):
     except Exception as e:
         st.error(f"❌ Volume plot failed: {str(e)}")
         return None
-
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
