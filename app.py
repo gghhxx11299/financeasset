@@ -3,6 +3,7 @@ from fpdf import FPDF
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
+
 from datetime import datetime
 import yfinance as yf
 import math
