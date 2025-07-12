@@ -580,9 +580,9 @@ def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
         return None
 
 def plot_stock_volume(ticker, days_to_expiry):
-    """Plot stock/ETF trading volume with proper formatting"""
+    """Plot stock trading volume as a clean line chart"""
     try:
-        # Fetch data with error handling
+        # Fetch data
         stock_data = yf.download(
             ticker,
             period=f"{min(days_to_expiry, 365)}d",
@@ -593,70 +593,75 @@ def plot_stock_volume(ticker, days_to_expiry):
             st.warning(f"⚠️ No volume data available for {ticker}")
             return None
 
-        # Format volume numbers properly
-        formatted_volumes = stock_data['Volume'].apply(lambda x: f"{x:,.0f}")
-        avg_volume = stock_data['Volume'].mean()
-        formatted_avg = f"{avg_volume:,.0f}"
+        # Convert volume to millions for better Y-axis readability
+        volume_in_millions = stock_data['Volume'] / 1_000_000
+        avg_volume = volume_in_millions.mean()
 
-        # Create the figure
+        # Create figure
         fig = go.Figure()
         
-        # Add volume bars with proper formatting
-        fig.add_trace(go.Bar(
+        # Add volume line with cyberpunk styling
+        fig.add_trace(go.Scatter(
             x=stock_data.index,
-            y=stock_data['Volume'],
+            y=volume_in_millions,
+            mode='lines',
             name='Volume',
-            marker_color='#00FFFF',  # Neon blue
+            line=dict(color='#00FFFF', width=2),  # Neon blue
             hovertemplate=(
                 "<b>Date</b>: %{x|%b %d, %Y}<br>"
-                "<b>Volume</b>: %{y:,}<br>"
+                "<b>Volume</b>: %{y:.2f}M<br>"  # Shows as X.XX million
                 "<extra></extra>"
-            )
+            ),
+            fill='tozeroy',
+            fillcolor='rgba(0, 255, 255, 0.1)'  # Light neon blue fill
         ))
         
-        # Add average line with proper formatting
+        # Add average line
         fig.add_hline(
             y=avg_volume,
             line_dash="dot",
             line_color="#FF00FF",  # Neon pink
-            annotation_text=f"Avg: {formatted_avg}",
+            annotation_text=f"Avg: {avg_volume:.2f}M",
             annotation_position="top right",
             annotation_font_color="#00FF00"  # Neon green
         )
         
-        # Update layout with cyberpunk styling
+        # Cyberpunk-styled layout
         fig.update_layout(
             title={
-                'text': f"<b>{ticker} VOLUME TRADED</b>",
-                'font': {'color': '#00FF00'}  # Neon green
+                'text': f"<b>{ticker} DAILY TRADING VOLUME</b>",
+                'font': {'color': '#00FF00', 'size': 20},
+                'y': 0.9,
+                'x': 0.5,
+                'xanchor': 'center'
             },
             xaxis_title="DATE",
-            yaxis_title="VOLUME (SHARES)",
+            yaxis_title="VOLUME (MILLIONS OF SHARES)",
             showlegend=False,
             hovermode="x unified",
             template="plotly_dark",
-            plot_bgcolor='rgba(10,10,20,0.5)',
+            plot_bgcolor='rgba(10,10,30,0.5)',
             paper_bgcolor='rgba(5,5,15,0.7)',
-            margin=dict(l=50, r=50, b=50, t=80),
+            margin=dict(l=50, r=50, b=50, t=90),
             xaxis=dict(
-                showgrid=True, 
-                gridcolor='rgba(0,255,255,0.1)',  # Neon blue grid
-                title_font=dict(color='#00FFFF')   # Neon blue
+                showgrid=True,
+                gridcolor='rgba(0, 255, 255, 0.2)',
+                title_font=dict(color='#00FFFF', size=14)
             ),
             yaxis=dict(
-                showgrid=True, 
-                gridcolor='rgba(0,255,255,0.1)',  # Neon blue grid
-                title_font=dict(color='#00FFFF')   # Neon blue
+                showgrid=True,
+                gridcolor='rgba(0, 255, 255, 0.2)',
+                title_font=dict(color='#00FFFF', size=14),
+                tickformat=".1f"  # Shows as X.X million
             )
         )
         
         return fig
 
     except Exception as e:
-        st.error(f"❌ ERROR PLOTTING {ticker} VOLUME: {str(e)}")
+        st.error(f"❌ ERROR PLOTTING VOLUME: {str(e)}")
         return None
-
-
+        
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
     fig = make_subplots(rows=3, cols=1, 
