@@ -520,28 +520,53 @@ def get_option_market_price(ticker, option_type, strike, expiry_date):
         st.error(f"Error fetching option market price: {e}")
         return None
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def get_us_10yr_treasury_yield():
-    """Fetch current 10-year Treasury yield"""
-    url = "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/Datasets/yield.csv"
-    fallback_yield = 0.025  # fallback 2.5%
-
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-
-        csv_data = StringIO(response.text)
-        df = pd.read_csv(csv_data)
-
-        df = df.dropna(subset=["10 Yr"])
-        if df.empty:
-            return fallback_yield
-
-        latest_yield_str = df["10 Yr"].iloc[-1]
-        return float(latest_yield_str) / 100
-    except Exception as e:
-        st.warning(f"Using fallback treasury yield: {e}")
-        return fallback_yield
-
+    # ... existing code ...
+def get_us_10yr_treasury_yield():
+    """Fetch current 10-year Treasury yield with multiple fallback options"""
+    fallback_yield = 0.025  # Default fallback 2.5%
+    
+    # Try multiple data sources
+    sources = [
+        # New Treasury URL
+        "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=all",
+        
+        # Alternative API
+        "https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=10year&apikey=demo",
+        
+        # FRED API (requires API key)
+        "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10"
+    ]
+    
+    for url in sources:
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            
+            if "alphavantage" in url:
+                data = response.json()
+                if 'data' in data and len(data['data']) > 0:
+                    return float(data['data'][0]['value']) / 100
+                    
+            elif "fred.stlouisfed" in url:
+                csv_data = StringIO(response.text)
+                df = pd.read_csv(csv_data)
+                if not df.empty:
+                    return float(df.iloc[-1, 1]) / 100
+                    
+            else:  # Treasury URL
+                soup = BeautifulSoup(response.text, 'html.parser')
+                table = soup.find('table')
+                if table:
+                    df = pd.read_html(str(table))[0]
+                    if '10 Yr' in df.columns:
+                        return float(df['10 Yr'].iloc[-1]) / 100
+                        
+        except Exception as e:
+            continue
+            
+    return fallback_yield
 # --- Volatility Analysis ---
 def calculate_iv_percentile(ticker, current_iv, lookback_days=365):
     """Calculate how current IV compares to historical levels"""
@@ -604,6 +629,7 @@ def plot_stock_volume(ticker, days_to_expiry):
         
         return fig
 
+   
     except Exception as e:
         st.error(f"Error plotting volume: {e}")
         return None
