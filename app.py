@@ -20,6 +20,7 @@ from plotly.subplots import make_subplots
 # --- ULTRA CYBERPUNK CSS STYLING ---
 # --- Enhanced Cyberpunk CSS with Better Layout ---
 # --- ULTRA CYBERPUNK CSS WITH WIDER CHARTS ---
+# --- ENHANCED CYBERPUNK CSS WITH BALANCED LAYOUT ---
 st.markdown("""
 <style>
     /* === CYBERPUNK BASE === */
@@ -42,132 +43,67 @@ st.markdown("""
         padding: 2rem !important;
         max-width: 98vw !important;
         margin: 0 auto !important;
-        overflow-x: hidden !important;
     }
 
-    /* === ENHANCED TITLES === */
-    .stApp h1 {
-        color: var(--neon-blue) !important;
-        text-shadow: 0 0 5px var(--neon-blue), 0 0 10px var(--neon-blue) !important;
-        font-family: 'Courier New', monospace !important;
-        font-weight: bold !important;
-        letter-spacing: 2px !important;
-        position: relative !important;
-        padding-bottom: 10px !important;
-        border-bottom: 2px solid var(--neon-blue) !important;
-        animation: scanline 8s linear infinite !important;
+    /* === THREE-COLUMN LAYOUT === */
+    .stContainer {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 1.5rem !important;
+        margin-bottom: 2rem !important;
     }
 
-    @keyframes scanline {
-        0% { background: linear-gradient(to bottom, transparent 95%, rgba(0, 255, 255, 0.1) 95%) !important; }
-        100% { background: linear-gradient(to bottom, transparent 0%, rgba(0, 255, 255, 0.1) 0%) !important; }
+    .stColumn {
+        flex: 1 !important;
+        min-width: 300px !important;
+        background: rgba(15, 15, 30, 0.6) !important;
+        border: 1px solid rgba(0, 255, 255, 0.3) !important;
+        padding: 1.5rem !important;
+        box-shadow: 0 0 15px rgba(0, 255, 255, 0.2) !important;
     }
 
-    /* === WIDER TRADING ADVICE CONTAINER === */
+    /* === WIDE ELEMENTS === */
     div[data-testid="stExpander"] > div {
         width: 100% !important;
-        max-width: 98vw !important;
         background: rgba(10, 15, 25, 0.9) !important;
         border: 1px solid var(--neon-green) !important;
         box-shadow: var(--glow-green) !important;
     }
 
-    /* === WIDER CHART CONTAINERS === */
     .stPlotlyChart {
         width: 100% !important;
         min-width: 100% !important;
-        max-width: 98vw !important;
-        margin-left: -1rem !important;
     }
 
-    /* === SENSITIVITIES CHART SPECIFIC === */
-    .js-plotly-plot .plot-container {
-        width: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-
-    /* === VOLUME CHART SPECIFIC === */
-    div[data-testid="stVerticalBlock"] > div:nth-child(3) > div {
-        width: 100% !important;
-        padding: 0 !important;
-    }
-
-    /* === NEON BUTTONS === */
-    .stButton>button {
-        background: transparent !important;
-        border: 2px solid var(--neon-blue) !important;
-        color: var(--neon-blue) !important;
-        border-radius: 0 !important;
-        padding: 0.75rem 2rem !important;
-        font-family: 'Courier New', monospace !important;
-        font-weight: bold !important;
-        text-transform: uppercase !important;
-        letter-spacing: 1px !important;
-        transition: all 0.3s !important;
-        box-shadow: var(--glow-blue) !important;
-        position: relative !important;
-        overflow: hidden !important;
-    }
-
-    .stButton>button:hover {
-        background: rgba(0, 255, 255, 0.1) !important;
-        text-shadow: 0 0 5px var(--neon-blue) !important;
-        box-shadow: 0 0 20px var(--neon-blue) !important;
-        transform: translateY(-2px) !important;
-    }
-
-    /* === DATA CARDS === */
-    .metric-card {
+    /* === METRIC CARDS === */
+    .stMetric {
         background: rgba(10, 10, 20, 0.8) !important;
         border: 1px solid var(--neon-blue) !important;
         box-shadow: var(--glow-blue), inset 0 0 10px rgba(0, 255, 255, 0.1) !important;
         padding: 1.5rem !important;
         margin-bottom: 1.5rem !important;
-        position: relative !important;
     }
 
-    /* === SCROLLBAR === */
-    ::-webkit-scrollbar {
-        width: 10px !important;
-        height: 10px !important;
+    /* === DATA TABLES === */
+    .stDataFrame {
+        width: 100% !important;
+        background: rgba(5, 5, 15, 0.7) !important;
+        border: 1px solid var(--neon-blue) !important;
+        box-shadow: var(--glow-blue) !important;
     }
 
-    ::-webkit-scrollbar-thumb {
-        background: linear-gradient(var(--neon-blue), var(--neon-green)) !important;
-        border-radius: 0 !important;
-    }
-
-    /* === FOOTER WITH CREDITS === */
+    /* === FOOTER === */
     .footer {
         background: rgba(0, 5, 10, 0.9) !important;
         border-top: 1px solid var(--neon-blue) !important;
         padding: 1.5rem !important;
         margin-top: 2rem !important;
         text-align: center !important;
-        box-shadow: 0 -5px 15px rgba(0, 255, 255, 0.2) !important;
     }
 
     .footer a {
         color: var(--neon-green) !important;
-        text-decoration: none !important;
         margin: 0 10px !important;
-        transition: all 0.3s !important;
-    }
-
-    .footer a:hover {
-        color: var(--neon-blue) !important;
-        text-shadow: var(--glow-blue) !important;
-    }
-
-    /* === RESPONSIVE ADJUSTMENTS === */
-    @media (max-width: 768px) {
-        .main {
-            padding: 1rem !important;
-        }
-        .stPlotlyChart {
-            margin-left: 0 !important;
-        }
     }
 </style>
 """, unsafe_allow_html=True)
