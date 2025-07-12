@@ -8,3 +8,4 @@ beautifulsoup4
 yfinance
 plotly
 kaleido
+fpdf
