@@ -9,3 +9,4 @@ yfinance
 plotly
 kaleido
 fpdf2
+fpdf
