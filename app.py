@@ -602,7 +602,7 @@ def plot_stock_volume(ticker, days=30):
 
         # 3. Get last 'days' trading days
         volume = stock_data['Volume'].dropna().iloc[-days:]
-        if len(volume) < days//2:  # At least half the requested days
+        if len(volume) < days // 2:
             st.warning(f"⚠️ Insufficient data (only {len(volume)} trading days)")
             return None
 
@@ -611,10 +611,14 @@ def plot_stock_volume(ticker, days=30):
         current_volume = volume.iloc[-1]
         ma20 = volume.rolling(20).mean().dropna()
 
+        # Extract min and max values as scalars
+        cmin_value = float(volume.min())
+        cmax_value = float(volume.max())
+
         # 5. Create figure
         fig = go.Figure()
 
-        # Volume bars with color gradient - FIXED: Use min() and max() to get scalar values
+        # Volume bars with color gradient
         fig.add_trace(go.Bar(
             x=volume.index,
             y=volume,
@@ -622,10 +626,12 @@ def plot_stock_volume(ticker, days=30):
             marker=dict(
                 color=volume,
                 colorscale='tealrose',
-                cmin=volume.min(),  # Now returns a single number
-                cmax=volume.max(),  # Now returns a single number
+                cmin=cmin_value,
+                cmax=cmax_value,
                 line=dict(width=0)
-        )))
+            ),
+            hovertemplate="<b>Date:</b> %{x|%b %d}<br><b>Volume:</b> %{y:,}<extra></extra>"
+        ))
 
         # 20-day moving average
         fig.add_trace(go.Scatter(
@@ -640,7 +646,7 @@ def plot_stock_volume(ticker, days=30):
         fig.add_annotation(
             x=volume.index[-1],
             y=current_volume,
-            text=f"Current: {current_volume/1e6:.1f}M",
+            text=f"Current: {current_volume / 1e6:.1f}M",
             showarrow=True,
             arrowhead=1,
             font=dict(color='white', size=12),
@@ -652,7 +658,7 @@ def plot_stock_volume(ticker, days=30):
             y=avg_volume,
             line_dash="dot",
             line_color="#00FFFF",
-            annotation_text=f"Avg: {avg_volume/1e6:.1f}M",
+            annotation_text=f"Avg: {avg_volume / 1e6:.1f}M",
             annotation_position="top right",
             annotation_font_color="#00FF00"
         )
@@ -670,7 +676,7 @@ def plot_stock_volume(ticker, days=30):
             yaxis=dict(
                 title="Shares Traded",
                 gridcolor='rgba(0,255,255,0.2)',
-                tickformat=".3s",  # Auto-scaling format
+                tickformat=".3s",
                 title_font=dict(color='cyan'),
                 tickfont=dict(color='cyan')
             ),
@@ -696,6 +702,7 @@ def plot_stock_volume(ticker, days=30):
     except Exception as e:
         st.error(f"❌ Volume plot failed: {str(e)}")
         return None
+
         
 def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
     """Create enhanced interactive sensitivity plot for Black-Scholes model"""
