@@ -967,6 +967,8 @@ def main():
         st.session_state.portfolio_analysis_done = False
     if 'portfolio_results' not in st.session_state:
         st.session_state.portfolio_results = None
+    if 'ticker' not in st.session_state:
+        st.session_state.ticker = "AAPL"
 
     # Create tabs
     tab1, tab2 = st.tabs(["Options Analysis", "Portfolio Management"])
@@ -979,7 +981,12 @@ def main():
             col1, col2 = st.columns(2)
             
             with col1:
-                ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
+                ticker = st.text_input(
+                    "Stock Ticker (e.g. AAPL)", 
+                    value=st.session_state.ticker
+                ).upper()
+                st.session_state.ticker = ticker
+                
                 option_type = st.selectbox("Option Type", ["call", "put"])
                 strike_price = st.number_input("Strike Price", min_value=0.0, value=150.0)
                 days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
@@ -1399,9 +1406,12 @@ def main():
                                         prices, risk_free_rate, return_type
                                     )
                                     
+                                    # Convert metrics to proper DataFrame format
+                                    metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
+                                    
                                     st.session_state.portfolio_results = {
                                         "weights": weights_df,
-                                        "metrics": metrics,
+                                        "metrics": metrics_df,
                                         "plot_data": ef_data,
                                         "method": "Mean-Variance"
                                     }
@@ -1411,9 +1421,12 @@ def main():
                                         prices, return_type
                                     )
                                     
+                                    # Convert metrics to proper DataFrame format
+                                    metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
+                                    
                                     st.session_state.portfolio_results = {
                                         "weights": weights_df,
-                                        "metrics": metrics,
+                                        "metrics": metrics_df,
                                         "link": link,
                                         "tickers": valid_tickers,
                                         "method": "HRP"
@@ -1423,6 +1436,7 @@ def main():
                                 
                         except Exception as e:
                             st.error(f"Portfolio optimization failed: {str(e)}")
+                            st.error(traceback.format_exc())
 
         # Display portfolio results
         if st.session_state.portfolio_analysis_done and st.session_state.portfolio_results:
@@ -1432,7 +1446,7 @@ def main():
             st.dataframe(results["weights"].style.format("{:.2%}"))
             
             st.markdown("### Portfolio Metrics")
-            st.write(pd.DataFrame.from_dict(results["metrics"], orient='index', columns=['Value']))
+            st.dataframe(results["metrics"], use_container_width=True)
             
             if results["method"] == "Mean-Variance":
                 st.markdown("### Efficient Frontier")
