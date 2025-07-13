@@ -830,9 +830,9 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
         return_type (str): "Simple" or "Log" returns
         
     Returns:
-        tuple: (weights_df, metrics_dict, plot_data_dict)
+        tuple: (weights_df, metrics_df, plot_data_dict)
             - weights_df: DataFrame of optimal weights
-            - metrics_dict: Dictionary of portfolio metrics
+            - metrics_df: DataFrame of portfolio metrics
             - plot_data_dict: Dictionary with frontier plotting data
     """
     try:
@@ -867,6 +867,9 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
         opt_results = minimize(negative_sharpe, initial_weights, args=args,
                              method='SLSQP', bounds=bounds, constraints=constraints)
         
+        if not opt_results.success:
+            raise ValueError("Optimization failed to converge")
+        
         # Optimal weights
         optimal_weights = opt_results.x
         weights_df = pd.DataFrame({
@@ -879,11 +882,13 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
         port_vol = np.sqrt(np.dot(optimal_weights.T, np.dot(cov_matrix, optimal_weights)))
         sharpe_ratio = (port_return - risk_free_rate) / port_vol
         
+        # Create metrics DataFrame with proper index
         metrics_dict = {
             'Expected Return': port_return,
             'Volatility': port_vol,
             'Sharpe Ratio': sharpe_ratio
         }
+        metrics_df = pd.DataFrame.from_dict(metrics_dict, orient='index', columns=['Value'])
         
         # Generate efficient frontier data
         def get_portfolio_stats(weights):
@@ -893,15 +898,17 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
         
         # Generate random portfolios for visualization
         num_portfolios = 10000
-        results = np.zeros((3, num_portfolios))
+        random_volatility = np.zeros(num_portfolios)
+        random_returns = np.zeros(num_portfolios)
+        random_sharpe = np.zeros(num_portfolios)
         
         for i in range(num_portfolios):
             weights = np.random.random(num_assets)
             weights /= np.sum(weights)
             ret, vol = get_portfolio_stats(weights)
-            results[0,i] = vol
-            results[1,i] = ret
-            results[2,i] = (ret - risk_free_rate) / vol
+            random_volatility[i] = vol
+            random_returns[i] = ret
+            random_sharpe[i] = (ret - risk_free_rate) / vol
         
         # Find efficient frontier
         frontier_volatility = []
@@ -925,21 +932,20 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
         
         # Prepare plot data
         plot_data_dict = {
-            'random_volatility': results[0,:],
-            'random_returns': results[1,:],
-            'random_sharpe': results[2,:],
+            'random_volatility': random_volatility,
+            'random_returns': random_returns,
+            'random_sharpe': random_sharpe,
             'frontier_volatility': frontier_volatility,
             'frontier_returns': frontier_returns,
             'asset_volatility': np.sqrt(np.diag(cov_matrix)),
             'asset_returns': expected_returns.values
         }
         
-        return weights_df, metrics_dict, plot_data_dict
+        return weights_df, metrics_df, plot_data_dict
     
     except Exception as e:
         st.error(f"Mean-variance optimization failed: {str(e)}")
         return None, None, None
-
 
 def plot_efficient_frontier(plot_data, weights_df, metrics):
     """
