@@ -806,17 +806,7 @@ def get_valid_tickers(tickers, start_date, end_date):
 def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple"):
     """
     Perform mean-variance optimization and calculate efficient frontier.
-    
-    Args:
-        prices (dict): Dictionary of price Series for each asset
-        risk_free_rate (float): Annual risk-free rate (default 0.025)
-        return_type (str): "Simple" or "Log" returns
-        
-    Returns:
-        tuple: (weights_df, metrics_df, plot_data_dict)
-            - weights_df: DataFrame of optimal weights
-            - metrics_df: DataFrame of portfolio metrics
-            - plot_data_dict: Dictionary with frontier plotting data
+    Returns tuple: (weights_df, metrics_df, plot_data_dict)
     """
     try:
         # Convert prices to DataFrame
@@ -828,7 +818,7 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
         else:  # Log returns
             returns = np.log(prices_df / prices_df.shift(1)).dropna()
         
-        # Calculate expected returns and covariance matrix (annualized)
+        # Annualize expected returns and covariance
         expected_returns = returns.mean() * 252
         cov_matrix = returns.cov() * 252
         
@@ -836,97 +826,66 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
         def negative_sharpe(weights, expected_returns, cov_matrix, risk_free_rate):
             port_return = np.dot(weights, expected_returns)
             port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-            sharpe = (port_return - risk_free_rate) / port_vol
-            return -sharpe
+            return -(port_return - risk_free_rate) / port_vol
         
-        # Constraints and bounds
+        # Setup optimization
         num_assets = len(expected_returns)
         args = (expected_returns, cov_matrix, risk_free_rate)
         constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
-        bounds = tuple((0, 1) for asset in range(num_assets))
-        initial_weights = num_assets * [1./num_assets]
+        bounds = tuple((0, 1) for _ in range(num_assets))
+        initial_weights = np.array(num_assets * [1./num_assets])
         
-        # Optimization
+        # Run optimization
         opt_results = minimize(negative_sharpe, initial_weights, args=args,
                              method='SLSQP', bounds=bounds, constraints=constraints)
         
         if not opt_results.success:
             raise ValueError("Optimization failed to converge")
         
-        # Optimal weights DataFrame
-        optimal_weights = opt_results.x
+        # Create weights DataFrame
         weights_df = pd.DataFrame({
             'Ticker': expected_returns.index,
-            'Weight': optimal_weights
+            'Weight': opt_results.x
         }).set_index('Ticker')
         
-        # Calculate portfolio metrics
-        port_return = np.dot(optimal_weights, expected_returns)
-        port_vol = np.sqrt(np.dot(optimal_weights.T, np.dot(cov_matrix, optimal_weights)))
+        # Calculate metrics
+        port_return = np.dot(opt_results.x, expected_returns)
+        port_vol = np.sqrt(np.dot(opt_results.x.T, np.dot(cov_matrix, opt_results.x)))
         sharpe_ratio = (port_return - risk_free_rate) / port_vol
         
-        # Create metrics DataFrame - FIXED: Properly specify index
-        metrics_data = [
-            ('Expected Return', port_return),
-            ('Volatility', port_vol),
-            ('Sharpe Ratio', sharpe_ratio)
-        ]
-        metrics_df = pd.DataFrame(metrics_data, columns=['Metric', 'Value']).set_index('Metric')
+        # Create metrics DataFrame with explicit index
+        metrics_df = pd.DataFrame({
+            'Value': [port_return, port_vol, sharpe_ratio]
+        }, index=['Expected Return', 'Volatility', 'Sharpe Ratio'])
         
         # Generate efficient frontier data
-        def get_portfolio_stats(weights):
-            ret = np.dot(weights, expected_returns)
-            vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-            return ret, vol
+        frontier_vol, frontier_ret = [], []
+        target_rets = np.linspace(expected_returns.min(), expected_returns.max(), 50)
         
-        # Generate random portfolios for visualization
-        num_portfolios = 10000
-        results = np.zeros((3, num_portfolios))
+        for target in target_rets:
+            res = minimize(lambda x: np.sqrt(np.dot(x.T, np.dot(cov_matrix, x))),
+                         initial_weights,
+                         method='SLSQP',
+                         bounds=bounds,
+                         constraints=(
+                             {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},
+                             {'type': 'eq', 'fun': lambda x: np.dot(x, expected_returns) - target}
+                         ))
+            if res.success:
+                frontier_vol.append(res['fun'])
+                frontier_ret.append(target)
         
-        for i in range(num_portfolios):
-            weights = np.random.random(num_assets)
-            weights /= np.sum(weights)
-            ret, vol = get_portfolio_stats(weights)
-            results[0,i] = vol
-            results[1,i] = ret
-            results[2,i] = (ret - risk_free_rate) / vol
-        
-        # Find efficient frontier
-        frontier_volatility = []
-        frontier_returns = []
-        target_returns = np.linspace(expected_returns.min(), expected_returns.max(), 50)
-        
-        for target in target_returns:
-            constraints = (
-                {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},
-                {'type': 'eq', 'fun': lambda x: np.dot(x, expected_returns) - target}
-            )
-            result = minimize(lambda x: np.sqrt(np.dot(x.T, np.dot(cov_matrix, x))),
-                            initial_weights,
-                            method='SLSQP',
-                            bounds=bounds,
-                            constraints=constraints)
-            if result.success:
-                frontier_volatility.append(result['fun'])
-                frontier_returns.append(target)
-        
-        # Prepare plot data
-        plot_data_dict = {
-            'random_volatility': results[0,:],
-            'random_returns': results[1,:],
-            'random_sharpe': results[2,:],
-            'frontier_volatility': frontier_volatility,
-            'frontier_returns': frontier_returns,
+        return weights_df, metrics_df, {
+            'frontier_volatility': frontier_vol,
+            'frontier_returns': frontier_ret,
             'asset_volatility': np.sqrt(np.diag(cov_matrix)),
             'asset_returns': expected_returns.values
         }
         
-        return weights_df, metrics_df, plot_data_dict
-    
     except Exception as e:
         st.error(f"Mean-variance optimization failed: {str(e)}")
-        traceback.print_exc()  # Print full traceback for debugging
         return None, None, None
+
 
 def plot_efficient_frontier(plot_data, weights_df, metrics):
     """
@@ -1028,11 +987,13 @@ def plot_efficient_frontier(plot_data, weights_df, metrics):
         st.error(f"Error plotting efficient frontier: {str(e)}")
         return go.Figure()
 
-def hierarchical_risk_parity(prices, return_type):
+def hierarchical_risk_parity(prices, return_type="Simple"):
     """
     Perform hierarchical risk parity portfolio optimization.
+    Returns tuple: (weights_df, metrics_df, link, dist)
     """
     try:
+        # Create DataFrame from prices
         df = pd.DataFrame(prices)
         
         # Calculate returns
@@ -1045,46 +1006,39 @@ def hierarchical_risk_parity(prices, return_type):
         cov = returns.cov()
         corr = returns.corr()
         
-        # Calculate distance matrix
+        # Distance matrix
         dist = np.sqrt((1 - corr).clip(0))
         
-        # Perform hierarchical clustering
+        # Hierarchical clustering
         link = linkage(ssd.squareform(dist), method="single")
         
-        # Calculate variance and sort assets
-        var = returns.var()
+        # Sort assets by hierarchical clustering
         sorted_idx = dendrogram(link, labels=df.columns, no_plot=True)['leaves']
         sorted_tickers = [df.columns[i] for i in sorted_idx]
         
         # Calculate risk-parity weights
+        var = returns.var()
         risks = var.loc[sorted_tickers]
-        total_risk = risks.sum()
-        weights = risks.apply(lambda x: 1.0 / x)
-        weights = weights / weights.sum()
+        weights = (1 / risks) / (1 / risks).sum()
         
-        # Prepare weights DataFrame
-        weights_df = pd.DataFrame(weights, columns=["Risk-Parity Weight"])
+        # Create weights DataFrame
+        weights_df = pd.DataFrame(weights, columns=['Weight'])
         
         # Calculate portfolio metrics
         exp_return = (returns.mean() * weights).sum() * 252
-        vol = np.sqrt(np.dot(weights.values.T, np.dot(cov * 252, weights.values)))
+        vol = np.sqrt(np.dot(weights.T, np.dot(cov * 252, weights)))
         sharpe = exp_return / vol if vol > 0 else 0
         
-        metrics = {
-            "Expected Return": exp_return,
-            "Volatility": vol,
-            "Sharpe Ratio": sharpe,
-        }
-        
-        # Convert metrics to DataFrame
-        metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
+        # Create metrics DataFrame with explicit index
+        metrics_df = pd.DataFrame({
+            'Value': [exp_return, vol, sharpe]
+        }, index=['Expected Return', 'Volatility', 'Sharpe Ratio'])
         
         return weights_df, metrics_df, link, dist
-    
+        
     except Exception as e:
         st.error(f"Hierarchical Risk Parity optimization failed: {str(e)}")
         return None, None, None, None
-
 def plot_dendrogram(link, labels):
     fig = go.Figure()
     dn = dendrogram(link, labels=labels, orientation='top', no_plot=True)
