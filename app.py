@@ -15,6 +15,8 @@ from bs4 import BeautifulSoup
 from io import StringIO
 from plotly.subplots import make_subplots
 import traceback
+from scipy.cluster.hierarchy import linkage, dendrogram
+import scipy.spatial.distance as ssd
 
 # --- ULTRA CYBERPUNK NEON STYLING ---
 st.markdown("""
@@ -777,6 +779,162 @@ def get_company_financials(ticker):
     except Exception as e:
         st.error(f"Error fetching financial data: {e}")
         return False, None
+
+
+
+def get_valid_tickers(tickers, start, end):
+    valid = []
+    invalid = []
+    prices = {}
+    for t in tickers:
+        try:
+            df = yf.download(t, start=start, end=end)["Close"]
+            if len(df) >= 60:
+                valid.append(t)
+                prices[t] = df
+            else:
+                invalid.append(t)
+        except:
+            invalid.append(t)
+    return valid, invalid, prices
+
+def mean_variance_optimization(prices, risk_free_rate, return_type):
+    df = pd.DataFrame(prices)
+    if return_type == "Log":
+        returns = np.log(df / df.shift(1)).dropna()
+    else:
+        returns = df.pct_change().dropna()
+    mean_returns = returns.mean()
+    cov_matrix = returns.cov()
+    num_assets = len(df.columns)
+    results = np.zeros((3, 10000))
+    weight_array = []
+    for i in range(10000):
+        weights = np.random.dirichlet(np.ones(num_assets))
+        ret = np.dot(weights, mean_returns) * 252
+        vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix * 252, weights)))
+        sharpe = (ret - risk_free_rate) / vol if vol > 0 else 0
+        results[0,i] = ret
+        results[1,i] = vol
+        results[2,i] = sharpe
+        weight_array.append(weights)
+    max_sharpe_idx = np.argmax(results[2])
+    max_sharpe_w = weight_array[max_sharpe_idx]
+    ef_data = pd.DataFrame({
+        "Return": results[0],
+        "Volatility": results[1],
+        "Sharpe": results[2],
+    })
+    weights_df = pd.DataFrame(max_sharpe_w, index=df.columns, columns=["Optimal Weight"])
+    metrics = {
+        "Expected Return": results[0,max_sharpe_idx],
+        "Volatility": results[1,max_sharpe_idx],
+        "Sharpe Ratio": results[2,max_sharpe_idx]
+    }
+    return weights_df, metrics, ef_data
+
+def plot_efficient_frontier(ef_data, weights_df, metrics):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=ef_data["Volatility"], y=ef_data["Return"],
+        mode="markers", marker=dict(color=ef_data["Sharpe"], colorscale="Viridis", size=6),
+        text=[f"Sharpe: {s:.2f}" for s in ef_data["Sharpe"]],
+        name="Portfolios"
+    ))
+    fig.add_trace(go.Scatter(
+        x=[metrics["Volatility"]], y=[metrics["Expected Return"]],
+        mode="markers+text", marker=dict(color="red", size=12, symbol="star"),
+        text=["Optimal Portfolio"], textposition="top center",
+        name="Optimal Portfolio"
+    ))
+    fig.update_layout(
+        title="<b>Efficient Frontier (Mean-Variance)</b>",
+        xaxis_title="Volatility",
+        yaxis_title="Expected Return",
+        template="plotly_white",
+        height=500,
+        plot_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=50, r=50, b=50, t=80),
+    )
+    return fig
+
+def hierarchical_risk_parity(prices, return_type):
+    df = pd.DataFrame(prices)
+    if return_type == "Log":
+        returns = np.log(df / df.shift(1)).dropna()
+    else:
+        returns = df.pct_change().dropna()
+    cov = returns.cov()
+    corr = returns.corr()
+    dist = np.sqrt((1 - corr).clip(0))
+    link = linkage(ssd.squareform(dist), method="single")
+    var = returns.var()
+    sorted_idx = dendrogram(link, labels=df.columns, no_plot=True)['leaves']
+    sorted_tickers = [df.columns[i] for i in sorted_idx]
+    risks = var.loc[sorted_tickers]
+    total_risk = risks.sum()
+    weights = risks.apply(lambda x: 1.0 / x)
+    weights = weights / weights.sum()
+    weights_df = pd.DataFrame(weights, columns=["Risk-Parity Weight"])
+    exp_return = (returns.mean() * weights).sum() * 252
+    vol = np.sqrt(np.dot(weights.values.T, np.dot(cov * 252, weights.values)))
+    sharpe = exp_return / vol if vol > 0 else 0
+    metrics = {
+        "Expected Return": exp_return,
+        "Volatility": vol,
+        "Sharpe Ratio": sharpe,
+    }
+    return weights_df, metrics, link, dist
+
+def plot_dendrogram(link, labels):
+    fig = go.Figure()
+    dn = dendrogram(link, labels=labels, orientation='top', no_plot=True)
+    icoord = np.array(dn['icoord'])
+    dcoord = np.array(dn['dcoord'])
+    colors = dn['color_list']
+    for xs, ys, color in zip(icoord, dcoord, colors):
+        fig.add_trace(go.Scatter(x=xs, y=ys, mode='lines', line=dict(color=color, width=3)))
+    fig.update_layout(
+        title="<b>HRP Dendrogram</b>",
+        xaxis=dict(showticklabels=True, tickvals=dn['ivl'], ticktext=dn['ivl']),
+        yaxis_title="Distance",
+        template="plotly_white",
+        height=500,
+        plot_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=50, r=50, b=50, t=80),
+    )
+    return fig
+
+def generate_portfolio_pdf(inputs, weights_df, metrics, fig_bytes):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.set_font("Arial", 'B', size=14)
+    pdf.cell(200, 10, "Portfolio Optimization Report", ln=True, align='C')
+    pdf.ln(10)
+    pdf.set_font("Arial", 'B', size=12)
+    pdf.cell(200, 10, "Input Parameters", ln=True)
+    pdf.set_font("Arial", size=12)
+    for key, value in inputs.items():
+        pdf.cell(200, 10, f"{key}: {value}", ln=True)
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', size=12)
+    pdf.cell(200, 10, "Portfolio Weights", ln=True)
+    pdf.set_font("Arial", size=12)
+    for idx, row in weights_df.iterrows():
+        pdf.cell(200, 10, f"{idx}: {row.values[0]:.4f}", ln=True)
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', size=12)
+    pdf.cell(200, 10, "Performance Metrics", ln=True)
+    pdf.set_font("Arial", size=12)
+    for k, v in metrics.items():
+        pdf.cell(200, 10, f"{k}: {v:.4f}", ln=True)
+    pdf.ln(5)
+    pdf.set_font("Arial", 'I', size=10)
+    pdf.cell(200, 10, "Note: Interactive plots available in web interface", ln=True)
+    if fig_bytes:
+        pdf.image(fig_bytes, x=15, y=None, w=180)
+    return pdf.output(dest='S').encode('latin-1')
 
 # --- Main Streamlit App ---
 def main():
