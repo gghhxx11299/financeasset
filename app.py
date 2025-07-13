@@ -808,7 +808,7 @@ def main():
     if "financials_df" not in st.session_state:
         st.session_state.financials_df = None
 
-    # Disclaimer at the top
+    # Disclaimer at the top (NEW ADDITION)
     st.markdown("""
     <div style="margin-bottom: 2rem; padding: 1rem; background-color: rgba(255,0,0,0.1); border-left: 4px solid #ff0000;">
     <strong style="color: #ff0000;">DISCLAIMER:</strong> This is for educational purposes only. Not professional financial advice. 
@@ -847,6 +847,29 @@ def main():
         elif financials_df is not None:
             with st.expander("View Company Financials", expanded=True):
                 st.dataframe(financials_df, use_container_width=True)
+                
+                # Additional financial metrics
+                try:
+                    stock = yf.Ticker(ticker)
+                    hist = stock.history(period="1y")
+                    
+                    if not hist.empty:
+                        st.markdown("### Historical Performance")
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.metric("1 Year Return", 
+                                      f"{(hist['Close'].iloc[-1]/hist['Close'].iloc[0]-1)*100:.2f}%")
+                        
+                        with col2:
+                            st.metric("Annualized Volatility",
+                                      f"{hist['Close'].pct_change().std() * np.sqrt(252)*100:.2f}%")
+                        
+                        with col3:
+                            st.metric("Current Volume vs Avg",
+                                      f"{hist['Volume'].iloc[-1]/hist['Volume'].mean()*100:.2f}%")
+                except Exception as e:
+                    st.warning(f"Could not load additional financial metrics: {e}")
 
     # Calculation button
     st.markdown("---")
@@ -1188,68 +1211,6 @@ def main():
         Options trading involves substantial risk and is not suitable for all investors. Consult with a qualified financial professional before making any investment decisions.
         </div>
         """, unsafe_allow_html=True)
-
-# Helper functions (placeholders - you'll need to implement these)
-def get_company_financials(ticker):
-    """Placeholder function to get company financials"""
-    return True, pd.DataFrame()  # Return is_stock, financials_df
-
-def get_us_10yr_treasury_yield():
-    """Placeholder function to get current treasury yield"""
-    return None
-
-def get_option_market_price(ticker, option_type, strike_price, expiry_date):
-    """Placeholder function to get option market price"""
-    return 5.0  # Example price
-
-def implied_volatility(price_market, S, K, T, r, option_type):
-    """Placeholder function to calculate implied volatility"""
-    return 0.2  # Example IV
-
-def black_scholes_greeks(S, K, T, r, sigma, option_type):
-    """Placeholder function to calculate Black-Scholes Greeks"""
-    return {
-        'Delta': 0.5,
-        'Gamma': 0.1,
-        'Vega': 0.05,
-        'Theta': -0.03,
-        'Rho': 0.02
-    }
-
-def black_scholes_price(S, K, T, r, sigma, option_type):
-    """Placeholder function for Black-Scholes pricing"""
-    return 5.0
-
-def binomial_tree_price(S, K, T, r, sigma, option_type):
-    """Placeholder function for Binomial Tree pricing"""
-    return 5.0
-
-def monte_carlo_price(S, K, T, r, sigma, option_type):
-    """Placeholder function for Monte Carlo pricing"""
-    return 5.0
-
-def calculate_iv_percentile(ticker, iv):
-    """Placeholder function to calculate IV percentile"""
-    return 50.0
-
-def generate_trading_advice(iv_divergences, z_score, correlation, capital, comfortable_capital):
-    """Placeholder function to generate trading advice"""
-    return pd.DataFrame({
-        "Advice": ["Example Advice"],
-        "Reason": ["Example Reason"]
-    })
-
-def prepare_export_csv(greeks_df, summary_df, trading_advice):
-    """Placeholder function to prepare CSV export"""
-    return "example,csv,data"
-
-def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
-    """Placeholder function to generate PDF report"""
-    return b"example_pdf_data"
-
-def plot_black_scholes_sensitivities(S, K, T, r, sigma, option_type):
-    """Placeholder function to plot BS sensitivities"""
-    return go.Figure()
-
+        
 if __name__ == "__main__":
     main()
