@@ -932,7 +932,6 @@ def plot_efficient_frontier(plot_data, weights_df, metrics):
     except Exception as e:
         st.error(f"Error plotting efficient frontier: {str(e)}")
         return go.Figure()
-
 def hierarchical_risk_parity(prices, return_type="Simple"):
     """HRP optimization implementation"""
     # Input validation
@@ -949,11 +948,89 @@ def hierarchical_risk_parity(prices, return_type="Simple"):
         else:
             returns = prices_df.pct_change().dropna()
         
-        # Rest of the implementation...
-        # [Include the full hierarchical_risk_parity implementation from previous response]
+        # Calculate covariance matrix
+        cov = returns.cov()
         
+        # 1. Hierarchical clustering
+        corr = returns.corr()
+        distance_matrix = np.sqrt((1 - corr) / 2)
+        dist_array = ssd.squareform(distance_matrix)
+        link = linkage(dist_array, 'single')
+        
+        # 2. Quasi-diagonalization
+        def get_quasi_diagonal(link):
+            # Sort clustered items by distance
+            link = link.astype(int)
+            sort_idx = pd.Series([link[-1, 0], [link[-1, 1]])
+            num_items = link[-1, 3]  # number of original items
+            while sort_idx.max() >= num_items:
+                sort_idx.index = sort_idx.index.map(lambda x: link[x - num_items, 0] 
+                if x < num_items else link[x - num_items, 1])
+                sort_idx = sort_idx.sort_index()
+            return sort_idx.tolist()
+        
+        sort_idx = get_quasi_diagonal(link)
+        sorted_corr = corr.iloc[sort_idx, sort_idx]
+        
+        # 3. Recursive bisection
+        def get_cluster_var(cov, cluster_items):
+            # Compute variance per cluster
+            cov_ = cov.loc[cluster_items, cluster_items]
+            w_ = 1 / np.diag(cov_)  # inverse variance weights
+            w_ /= w_.sum()
+            return np.dot(w_, np.dot(cov_, w_))
+        
+        def get_hrp_weights(cov, sort_idx):
+            # Recursive bisection
+            weights = pd.Series(1, index=sort_idx)
+            clusters = [sort_idx]  # initial cluster contains all assets
+            
+            while len(clusters) > 0:
+                # bisect the cluster
+                cluster = clusters.pop(0)
+                if len(cluster) == 1:
+                    continue
+                
+                # split cluster into left and right
+                left = cluster[:len(cluster)//2]
+                right = cluster[len(cluster)//2:]
+                
+                # compute allocation factors
+                left_var = get_cluster_var(cov, left)
+                right_var = get_cluster_var(cov, right)
+                alloc_factor = 1 - left_var / (left_var + right_var)
+                
+                # assign weights
+                weights[left] *= alloc_factor
+                weights[right] *= 1 - alloc_factor
+                
+                # add new clusters
+                if len(left) > 1:
+                    clusters.append(left)
+                if len(right) > 1:
+                    clusters.append(right)
+            
+            return weights
+        
+        weights = get_hrp_weights(cov, sort_idx)
+        weights_df = pd.DataFrame(weights, columns=['Weight'])
+        
+        # Calculate portfolio metrics
+        portfolio_return = np.dot(weights, returns.mean()) * 252
+        portfolio_vol = np.sqrt(np.dot(weights.T, np.dot(cov * 252, weights)))
+        sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_vol
+        
+        metrics = {
+            "Expected Return": portfolio_return,
+            "Volatility": portfolio_vol,
+            "Sharpe Ratio": sharpe_ratio
+        }
+        metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
+        
+        return weights_df, metrics_df, link, distance_matrix
+    
     except Exception as e:
-        st.error(f"Optimization failed: {str(e)}")
+        st.error(f"HRP optimization failed: {str(e)}")
         return None, None, None, None
 def validate_price_data(prices):
     """Validate that prices is a dict of pandas Series with proper index"""
@@ -1515,19 +1592,23 @@ def main():
                                     st.session_state.portfolio_analysis_done = True
                             
                             elif optimization_method == "Hierarchical Risk Parity":
-                                weights_df, metrics_df, link, dist = hierarchical_risk_parity(
+                                result = hierarchical_risk_parity(
                                     prices, return_type
                                 )
                                 
-                                if weights_df is not None and metrics_df is not None:
+                                if result is not None and len(result) == 4:
+                                    weights_df, metrics_df, link, dist = result
                                     st.session_state.portfolio_results = {
                                         "weights": weights_df,
                                         "metrics": metrics_df,
                                         "link": link,
+                                        "distance_matrix": dist,
                                         "tickers": valid_tickers,
                                         "method": "HRP"
                                     }
                                     st.session_state.portfolio_analysis_done = True
+                                else:
+                                    st.error("HRP optimization failed to return valid results")
                     
                     except Exception as e:
                         st.error(f"Portfolio optimization failed: {str(e)}")
@@ -1551,7 +1632,7 @@ def main():
                     results["metrics"]
                 )
                 st.plotly_chart(fig, use_container_width=True)
-            else:
+            elif results["method"] == "HRP":
                 st.markdown("### Hierarchical Clustering")
                 fig = plot_dendrogram(
                     results["link"], 
