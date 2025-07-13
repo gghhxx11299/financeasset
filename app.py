@@ -10,7 +10,7 @@ import numpy as np
 from scipy.stats import norm, percentileofscore
 import plotly.graph_objs as go
 import time
-import requestse
+import requests
 from bs4 import BeautifulSoup
 from io import StringIO
 from plotly.subplots import make_subplots
