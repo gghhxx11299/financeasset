@@ -783,18 +783,66 @@ def get_company_financials(ticker):
 def get_valid_tickers(tickers, start, end):
     valid = []
     invalid = []
-    prices = {}
+    price_data = {}
     for t in tickers:
         try:
-            df = yf.download(t, start=start, end=end)["Close"]
-            if len(df) >= 60:  # Require at least 60 data points
+            # Download historical data
+            data = yf.download(t, start=start, end=end)
+            if not data.empty and len(data) >= 60:  # Ensure we have enough data points
                 valid.append(t)
-                prices[t] = df  # Store the entire series, not just scalar values
+                price_data[t] = data['Close']  # Store the closing prices
             else:
                 invalid.append(t)
-        except:
+        except Exception as e:
             invalid.append(t)
-    return valid, invalid, prices
+    return valid, invalid, price_data
+
+def mean_variance_optimization(price_data, risk_free_rate, return_type):
+    # Convert price data to DataFrame
+    df = pd.DataFrame(price_data)
+    
+    if df.empty:
+        raise ValueError("No valid price data available for optimization")
+    
+    if return_type == "Log":
+        returns = np.log(df / df.shift(1)).dropna()
+    else:
+        returns = df.pct_change().dropna()
+    
+    mean_returns = returns.mean()
+    cov_matrix = returns.cov()
+    num_assets = len(df.columns)
+    
+    results = np.zeros((3, 10000))
+    weight_array = []
+    
+    for i in range(10000):
+        weights = np.random.dirichlet(np.ones(num_assets))
+        ret = np.dot(weights, mean_returns) * 252
+        vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix * 252, weights)))
+        sharpe = (ret - risk_free_rate) / vol if vol > 0 else 0
+        results[0,i] = ret
+        results[1,i] = vol
+        results[2,i] = sharpe
+        weight_array.append(weights)
+    
+    max_sharpe_idx = np.argmax(results[2])
+    max_sharpe_w = weight_array[max_sharpe_idx]
+    
+    ef_data = pd.DataFrame({
+        "Return": results[0],
+        "Volatility": results[1],
+        "Sharpe": results[2],
+    })
+    
+    weights_df = pd.DataFrame(max_sharpe_w, index=df.columns, columns=["Optimal Weight"])
+    metrics = {
+        "Expected Return": results[0,max_sharpe_idx],
+        "Volatility": results[1,max_sharpe_idx],
+        "Sharpe Ratio": results[2,max_sharpe_idx]
+    }
+    
+    return weights_df, metrics, ef_data
 
 def mean_variance_optimization(prices, risk_free_rate, return_type):
     # Convert prices dictionary to DataFrame
