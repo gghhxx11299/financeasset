@@ -1961,7 +1961,7 @@ def plot_efficient_frontier(plot_data, weights_df, metrics):
                 text=weights_df.index.tolist(),
                 textposition="top center",
                 hovertemplate='<b>%{text}</b><br>Volatility: %{x:.2%}<br>Return: %{y:.2%}'
-            ))
+                         )
         
         # Add optimal portfolio
         if metrics is not None and 'Expected Return' in metrics.index and 'Volatility' in metrics.index:
