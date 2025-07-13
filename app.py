@@ -974,7 +974,7 @@ def main():
                 strike_price = st.number_input(
                     "Strike Price", 
                     min_value=0.0, 
-                    value=150.0, 
+                    value=220.0, 
                     key="options_strike_input"
                 )
                 days_to_expiry = st.number_input(
