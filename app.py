@@ -934,6 +934,7 @@ def generate_portfolio_pdf(inputs, weights_df, metrics, fig_bytes):
         pdf.image(fig_bytes, x=15, y=None, w=180)
     return pdf.output(dest='S').encode('latin-1')
 
+
 def main():
     st.title("Options Profit & Capital Advisor")
 
@@ -951,7 +952,8 @@ def main():
         "iv_percentile": None,
         "is_stock": None,
         "financials_df": None,
-        "portfolio_analysis_done": False
+        "portfolio_analysis_done": False,
+        "portfolio_results": None
     }
     
     for key, value in session_vars.items():
@@ -965,127 +967,232 @@ def main():
         # Options Analysis Tab
         st.markdown("### Input Parameters")
         
-        # Use a container for the expander to ensure proper rendering
-        with st.container():
-            with st.expander("Configure your option trade", expanded=True):
-                col1, col2 = st.columns(2)
+        with st.expander("Configure your option trade", expanded=True):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                ticker = st.text_input(
+                    "Stock Ticker", 
+                    value="AAPL", 
+                    key="options_ticker_input"
+                ).upper()
+                option_type = st.selectbox(
+                    "Option Type", 
+                    ["call", "put"], 
+                    key="options_type_select"
+                )
+                strike_price = st.number_input(
+                    "Strike Price", 
+                    min_value=0.0, 
+                    value=150.0, 
+                    key="options_strike_input"
+                )
+                days_to_expiry = st.number_input(
+                    "Days to Expiry", 
+                    min_value=1, 
+                    max_value=365, 
+                    value=30, 
+                    key="options_dte_input"
+                )
+                risk_free_rate = st.number_input(
+                    "Risk-Free Rate", 
+                    min_value=0.0, 
+                    max_value=1.0, 
+                    value=0.025, 
+                    key="options_rfr_input"
+                )
+                sector = st.selectbox(
+                    "Sector", 
+                    list(SECTOR_MAP.keys()), 
+                    key="options_sector_select"
+                )
                 
-                with col1:
-                    ticker = st.text_input(
-                        "Stock Ticker", 
-                        value="AAPL", 
-                        key="options_ticker_input"
-                    ).upper()
-                    option_type = st.selectbox(
-                        "Option Type", 
-                        ["call", "put"], 
-                        key="options_type_select"
-                    )
-                    strike_price = st.number_input(
-                        "Strike Price", 
-                        min_value=0.0, 
-                        value=150.0, 
-                        key="options_strike_input"
-                    )
-                    days_to_expiry = st.number_input(
-                        "Days to Expiry", 
-                        min_value=1, 
-                        max_value=365, 
-                        value=30, 
-                        key="options_dte_input"
-                    )
-                    risk_free_rate = st.number_input(
-                        "Risk-Free Rate", 
-                        min_value=0.0, 
-                        max_value=1.0, 
-                        value=0.025, 
-                        key="options_rfr_input"
-                    )
-                    sector = st.selectbox(
-                        "Sector", 
-                        list(SECTOR_MAP.keys()), 
-                        key="options_sector_select"
-                    )
-                    
-                with col2:
-                    return_type = st.selectbox(
-                        "Return Type", 
-                        ["Simple", "Log"], 
-                        key="options_return_type_select"
-                    )
-                    comfortable_capital = st.number_input(
-                        "Comfortable Capital ($)", 
-                        min_value=0.0, 
-                        value=1000.0, 
-                        key="options_comfort_cap_input"
-                    )
-                    max_capital = st.number_input(
-                        "Max Capital ($)", 
-                        min_value=0.0, 
-                        value=5000.0, 
-                        key="options_max_cap_input"
-                    )
-                    min_capital = st.number_input(
-                        "Min Capital ($)", 
-                        min_value=0.0, 
-                        value=500.0, 
-                        key="options_min_cap_input"
-                    )
-                    pricing_model = st.selectbox(
-                        "Pricing Model", 
-                        ["Black-Scholes", "Binomial Tree", "Monte Carlo"], 
-                        key="options_pricing_model_select"
-                    )
+            with col2:
+                return_type = st.selectbox(
+                    "Return Type", 
+                    ["Simple", "Log"], 
+                    key="options_return_type_select"
+                )
+                comfortable_capital = st.number_input(
+                    "Comfortable Capital ($)", 
+                    min_value=0.0, 
+                    value=1000.0, 
+                    key="options_comfort_cap_input"
+                )
+                max_capital = st.number_input(
+                    "Max Capital ($)", 
+                    min_value=0.0, 
+                    value=5000.0, 
+                    key="options_max_cap_input"
+                )
+                min_capital = st.number_input(
+                    "Min Capital ($)", 
+                    min_value=0.0, 
+                    value=500.0, 
+                    key="options_min_cap_input"
+                )
+                pricing_model = st.selectbox(
+                    "Pricing Model", 
+                    ["Black-Scholes", "Binomial Tree", "Monte Carlo"], 
+                    key="options_pricing_model_select"
+                )
 
-        # [Rest of your Options Analysis tab code...]
+        # Check if ticker is a stock and get financials
+        if ticker:
+            is_stock, financials_df = get_company_financials(ticker)
+            st.session_state.is_stock = is_stock
+            st.session_state.financials_df = financials_df
+            
+            if not is_stock:
+                st.warning(f"⚠️ {ticker} does not appear to be a stock. This tool works best with individual stocks.")
+            elif financials_df is not None:
+                with st.expander("View Company Financials", expanded=True, key="financials_expander"):
+                    st.dataframe(financials_df, use_container_width=True)
+
+        # Calculation button
+        st.markdown("---")
+        calculate_clicked = st.button("Calculate Profit & Advice", key="calculate_button")
+
+        # When Calculate button is pressed
+        if calculate_clicked:
+            with st.spinner("Calculating option values and generating advice..."):
+                try:
+                    # [Previous calculation code here...]
+                    st.session_state.calculation_done = True
+                    st.success("Calculation complete!")
+                except Exception as e:
+                    st.error(f"Calculation failed: {str(e)}")
+                    st.error(traceback.format_exc())
+                    st.session_state.calculation_done = False
+
+        # Display results if calculation is done
+        if st.session_state.calculation_done:
+            st.markdown("## Analysis Results")
+            
+            # [Display results code here...]
 
     with tab2:
         # Portfolio Management Tab
         st.markdown("## Portfolio Management")
         
-        with st.container():
-            with st.expander("Configure Portfolio", expanded=True):
-                col1, col2 = st.columns(2)
+        with st.expander("Configure Portfolio", expanded=True):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                tickers_input = st.text_input(
+                    "Enter tickers (comma separated)", 
+                    "AAPL,MSFT,GOOGL", 
+                    key="portfolio_tickers_input"
+                )
+                start_date = st.date_input(
+                    "Start date", 
+                    datetime.now() - timedelta(days=365), 
+                    key="portfolio_start_date_input"
+                )
+                end_date = st.date_input(
+                    "End date", 
+                    datetime.now(), 
+                    key="portfolio_end_date_input"
+                )
+                risk_free_rate = st.number_input(
+                    "Risk-free rate", 
+                    0.0, 1.0, 0.025, 
+                    key="portfolio_rfr_input"
+                )
                 
-                with col1:
-                    tickers_input = st.text_input(
-                        "Enter tickers (comma separated)", 
-                        "AAPL,MSFT,GOOGL", 
-                        key="portfolio_tickers_input"
-                    )
-                    start_date = st.date_input(
-                        "Start date", 
-                        datetime.now() - timedelta(days=365), 
-                        key="portfolio_start_date_input"
-                    )
-                    end_date = st.date_input(
-                        "End date", 
-                        datetime.now(), 
-                        key="portfolio_end_date_input"
-                    )
-                    risk_free_rate = st.number_input(
-                        "Risk-free rate", 
-                        0.0, 1.0, 0.025, 
-                        key="portfolio_rfr_input"
+            with col2:
+                optimization_method = st.selectbox(
+                    "Optimization Method", 
+                    ["Mean-Variance", "Hierarchical Risk Parity"], 
+                    key="portfolio_optim_method_select"
+                )
+                return_type = st.selectbox(
+                    "Return Type", 
+                    ["Simple", "Log"], 
+                    key="portfolio_return_type_select"
+                )
+                calculate_portfolio = st.button(
+                    "Optimize Portfolio", 
+                    key="portfolio_optim_button"
+                )
+
+        if calculate_portfolio:
+            with st.spinner("Optimizing portfolio..."):
+                try:
+                    tickers = [t.strip().upper() for t in tickers_input.split(",")]
+                    
+                    # Get valid tickers and prices
+                    valid_tickers, invalid_tickers, prices = get_valid_tickers(
+                        tickers, start_date, end_date
                     )
                     
-                with col2:
-                    optimization_method = st.selectbox(
-                        "Optimization Method", 
-                        ["Mean-Variance", "Hierarchical Risk Parity"], 
-                        key="portfolio_optim_method_select"
-                    )
-                    return_type = st.selectbox(
-                        "Return Type", 
-                        ["Simple", "Log"], 
-                        key="portfolio_return_type_select"
-                    )
-                    calculate_portfolio = st.button(
-                        "Optimize Portfolio", 
-                        key="portfolio_optim_button"
-                    )
+                    if invalid_tickers:
+                        st.warning(f"Invalid tickers ignored: {', '.join(invalid_tickers)}")
+                    
+                    if not valid_tickers:
+                        st.error("No valid tickers found")
+                        return
+                    
+                    # Perform optimization
+                    if optimization_method == "Mean-Variance":
+                        weights_df, metrics, ef_data = mean_variance_optimization(
+                            prices, risk_free_rate, return_type
+                        )
+                        
+                        # Store results
+                        st.session_state.portfolio_results = {
+                            "weights": weights_df,
+                            "metrics": metrics,
+                            "plot_data": ef_data,
+                            "method": "Mean-Variance"
+                        }
+                        
+                    elif optimization_method == "Hierarchical Risk Parity":
+                        weights_df, metrics, link, dist = hierarchical_risk_parity(
+                            prices, return_type
+                        )
+                        
+                        # Store results
+                        st.session_state.portfolio_results = {
+                            "weights": weights_df,
+                            "metrics": metrics,
+                            "link": link,
+                            "tickers": valid_tickers,
+                            "method": "HRP"
+                        }
+                    
+                    st.session_state.portfolio_analysis_done = True
+                    st.success("Portfolio optimization complete!")
+                    
+                except Exception as e:
+                    st.error(f"Portfolio optimization failed: {str(e)}")
+                    st.error(traceback.format_exc())
 
-        # [Rest of your Portfolio Management tab code...]
+        # Display portfolio results
+        if st.session_state.portfolio_analysis_done:
+            results = st.session_state.portfolio_results
+            
+            st.markdown("### Optimal Weights")
+            st.dataframe(results["weights"].style.format("{:.2%}"))
+            
+            st.markdown("### Portfolio Metrics")
+            st.write(pd.DataFrame.from_dict(results["metrics"], orient='index', columns=['Value']))
+            
+            if results["method"] == "Mean-Variance":
+                st.markdown("### Efficient Frontier")
+                fig = plot_efficient_frontier(
+                    results["plot_data"], 
+                    results["weights"], 
+                    results["metrics"]
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.markdown("### Hierarchical Clustering")
+                fig = plot_dendrogram(
+                    results["link"], 
+                    results["tickers"]
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
     # Footer
     st.markdown("---")
