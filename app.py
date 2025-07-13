@@ -1194,29 +1194,7 @@ def main():
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
-    # Footer
-    st.markdown("---")
-    st.markdown("""
-    <div class="footer">
-        <div style="margin-bottom: 1rem;">
-            <span style="color: var(--neon-blue); font-size: 1.2rem;" class="flicker">MADE WITH ❤️ BY</span>
-            <span style="color: var(--neon-green); font-weight: bold; font-size: 1.3rem; text-shadow: 0 0 10px var(--neon-green);">GEABRAL MULUGETA</span>
-        </div>
-        <div style="margin-top: 1rem;">
-            <a href="https://github.com/gghhxx11299" target="_blank">GITHUB</a>
-            <span style="color: var(--neon-blue);"> | </span>
-            <a href="https://www.linkedin.com/in/geabral-mulugeta-334358327/" target="_blank">LINKEDIN</a>
-            <span style="color: var(--neon-blue);"> | </span>
-            <a href="#" onclick="alert('COMING SOON: PERSONAL WEBSITE')">PORTFOLIO</a>
-        </div>
-        <div class="cyberpunk-divider"></div>
-        <div style="font-size: 0.8rem; color: var(--neon-blue);">
-            <span class="cyberpunk-badge">ALPHA 2.0</span>
-            <span class="cyberpunk-badge">NEURAL NET</span>
-            <span class="cyberpunk-badge">OPTIMIZED</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+   
 
 if __name__ == "__main__":
     main()
