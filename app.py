@@ -819,20 +819,7 @@ def get_valid_tickers(tickers, start_date, end_date):
     return valid_tickers, invalid_tickers, prices_dict
 
 def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple"):
-    """
-    Perform mean-variance optimization and calculate efficient frontier.
-    
-    Args:
-        prices (dict): Dictionary of price Series for each asset
-        risk_free_rate (float): Annual risk-free rate
-        return_type (str): "Simple" or "Log" returns
-        
-    Returns:
-        tuple: (weights_df, metrics_df, plot_data_dict)
-            - weights_df: DataFrame of optimal weights
-            - metrics_df: DataFrame of portfolio metrics
-            - plot_data_dict: Dictionary with frontier plotting data
-    """
+    """Perform mean-variance optimization and calculate efficient frontier."""
     try:
         # Convert prices to DataFrame
         prices_df = pd.DataFrame(prices)
@@ -896,17 +883,15 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
         
         # Generate random portfolios for visualization
         num_portfolios = 10000
-        random_volatility = np.zeros(num_portfolios)
-        random_returns = np.zeros(num_portfolios)
-        random_sharpe = np.zeros(num_portfolios)
+        results = np.zeros((3, num_portfolios))
         
         for i in range(num_portfolios):
             weights = np.random.random(num_assets)
             weights /= np.sum(weights)
             ret, vol = get_portfolio_stats(weights)
-            random_volatility[i] = vol
-            random_returns[i] = ret
-            random_sharpe[i] = (ret - risk_free_rate) / vol
+            results[0,i] = vol
+            results[1,i] = ret
+            results[2,i] = (ret - risk_free_rate) / vol
         
         # Find efficient frontier
         frontier_volatility = []
@@ -919,7 +904,7 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
                 {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},
                 {'type': 'eq', 'fun': lambda x: np.dot(x, expected_returns) - target}
             )
-            result = minimize(lambda x: np.sqrt(np.dot(x.T, np.dot(cov_matrix, x))),
+            result = minimize(lambda x: np.sqrt(np.dot(x.T, np.dot(cov_matrix, x)))),
                             initial_weights,
                             method='SLSQP',
                             bounds=bounds,
@@ -930,9 +915,9 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
         
         # Prepare plot data
         plot_data_dict = {
-            'random_volatility': random_volatility,
-            'random_returns': random_returns,
-            'random_sharpe': random_sharpe,
+            'random_volatility': results[0,:],
+            'random_returns': results[1,:],
+            'random_sharpe': results[2,:],
             'frontier_volatility': frontier_volatility,
             'frontier_returns': frontier_returns,
             'asset_volatility': np.sqrt(np.diag(cov_matrix)),
@@ -1049,17 +1034,6 @@ def plot_efficient_frontier(plot_data, weights_df, metrics):
 def hierarchical_risk_parity(prices, return_type):
     """
     Perform hierarchical risk parity portfolio optimization.
-    
-    Args:
-        prices (dict): Dictionary of price Series for each asset
-        return_type (str): "Simple" or "Log" returns
-        
-    Returns:
-        tuple: (weights_df, metrics, link, dist)
-            - weights_df: DataFrame of optimal weights
-            - metrics: Dictionary of portfolio metrics
-            - link: Linkage matrix for dendrogram
-            - dist: Distance matrix
     """
     try:
         df = pd.DataFrame(prices)
@@ -1105,7 +1079,10 @@ def hierarchical_risk_parity(prices, return_type):
             "Sharpe Ratio": sharpe,
         }
         
-        return weights_df, metrics, link, dist
+        # Convert metrics to DataFrame
+        metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
+        
+        return weights_df, metrics_df, link, dist
     
     except Exception as e:
         st.error(f"Hierarchical Risk Parity optimization failed: {str(e)}")
