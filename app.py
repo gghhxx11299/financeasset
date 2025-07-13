@@ -824,7 +824,7 @@ def main():
         with col1:
             ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
             option_type = st.selectbox("Option Type", ["call", "put"])
-            strike_price = st.number_input("Strike Price", min_value=0.0, value=150.0)
+            strike_price = st.number_input("Strike Price", min_value=0.0, value=210.0)
             days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
             risk_free_rate = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=0.025)
             sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
