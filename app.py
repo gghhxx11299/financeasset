@@ -1421,6 +1421,14 @@ def main():
                         file_name="options_analysis_report.pdf",
                         mime="application/pdf"
                     )
+        
+        # Disclaimer for Options Analysis tab
+        st.markdown("""
+        <div style="margin-top: 2rem; padding: 1rem; background-color: rgba(255,0,0,0.1); border-left: 4px solid #ff0000;">
+            <strong style="color: #ff0000;">DISCLAIMER:</strong> This is for educational purposes only. Not professional financial advice. 
+            Past performance is not indicative of future results. Investing involves risk, including possible loss of principal.
+        </div>
+        """, unsafe_allow_html=True)
 
     with tab2:
         # Portfolio Management Tab
@@ -1468,12 +1476,16 @@ def main():
                     try:
                         tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
                         
+                        # Get price data - this now correctly returns a dictionary of Series
                         valid_tickers, invalid_tickers, prices = get_valid_tickers(
                             tickers, start_date, end_date
                         )
                         
+                        if invalid_tickers:
+                            st.warning(f"Invalid tickers: {', '.join(invalid_tickers)}")
+                        
                         if not valid_tickers:
-                            st.error("No valid tickers found with sufficient data")
+                            st.error("No valid tickers with sufficient data")
                         else:
                             if optimization_method == "Mean-Variance":
                                 weights_df, metrics, ef_data = mean_variance_optimization(
@@ -1534,7 +1546,7 @@ def main():
                 )
                 st.plotly_chart(fig, use_container_width=True)
         
-        # Disclaimer
+        # Disclaimer for Portfolio Management tab
         st.markdown("""
         <div style="margin-top: 2rem; padding: 1rem; background-color: rgba(255,0,0,0.1); border-left: 4px solid #ff0000;">
             <strong style="color: #ff0000;">DISCLAIMER:</strong> This is for educational purposes only. Not professional financial advice. 
