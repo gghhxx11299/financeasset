@@ -938,32 +938,25 @@ def main():
     st.title("Options Profit & Capital Advisor")
 
     # Initialize session state variables
-    if "calculation_done" not in st.session_state:
-        st.session_state.calculation_done = False
-    if "export_csv" not in st.session_state:
-        st.session_state.export_csv = None
-    if "export_pdf" not in st.session_state:
-        st.session_state.export_pdf = None
-    if "greeks_df" not in st.session_state:
-        st.session_state.greeks_df = None
-    if "summary_info" not in st.session_state:
-        st.session_state.summary_info = None
-    if "plot_fig" not in st.session_state:
-        st.session_state.plot_fig = None
-    if "input_data" not in st.session_state:
-        st.session_state.input_data = None
-    if "trading_advice" not in st.session_state:
-        st.session_state.trading_advice = None
-    if "bs_sensitivities_fig" not in st.session_state:
-        st.session_state.bs_sensitivities_fig = None
-    if "iv_percentile" not in st.session_state:
-        st.session_state.iv_percentile = None
-    if "is_stock" not in st.session_state:
-        st.session_state.is_stock = None
-    if "financials_df" not in st.session_state:
-        st.session_state.financials_df = None
-    if "portfolio_analysis_done" not in st.session_state:
-        st.session_state.portfolio_analysis_done = False
+    session_vars = {
+        "calculation_done": False,
+        "export_csv": None,
+        "export_pdf": None,
+        "greeks_df": None,
+        "summary_info": None,
+        "plot_fig": None,
+        "input_data": None,
+        "trading_advice": None,
+        "bs_sensitivities_fig": None,
+        "iv_percentile": None,
+        "is_stock": None,
+        "financials_df": None,
+        "portfolio_analysis_done": False
+    }
+    
+    for key, value in session_vars.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
     # Create tabs
     tab1, tab2 = st.tabs(["Options Analysis", "Portfolio Management"])
@@ -971,49 +964,128 @@ def main():
     with tab1:
         # Options Analysis Tab
         st.markdown("### Input Parameters")
-        with st.expander("Configure your option trade", key="options_config_expander"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                ticker = st.text_input("Stock Ticker", value="AAPL", key="options_ticker").upper()
-                option_type = st.selectbox("Option Type", ["call", "put"], key="options_type_select")
-                strike_price = st.number_input("Strike Price", min_value=0.0, value=150.0, key="options_strike")
-                days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30, key="options_dte")
-                risk_free_rate = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=0.025, key="options_rfr")
-                sector = st.selectbox("Sector", list(SECTOR_MAP.keys()), key="options_sector")
+        
+        # Use a container for the expander to ensure proper rendering
+        with st.container():
+            with st.expander("Configure your option trade", expanded=True):
+                col1, col2 = st.columns(2)
                 
-            with col2:
-                return_type = st.selectbox("Return Type", ["Simple", "Log"], key="options_return_type")
-                comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0, key="options_comfort_cap")
-                max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0, key="options_max_cap")
-                min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0, key="options_min_cap")
-                pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"], key="options_pricing_model")
+                with col1:
+                    ticker = st.text_input(
+                        "Stock Ticker", 
+                        value="AAPL", 
+                        key="options_ticker_input"
+                    ).upper()
+                    option_type = st.selectbox(
+                        "Option Type", 
+                        ["call", "put"], 
+                        key="options_type_select"
+                    )
+                    strike_price = st.number_input(
+                        "Strike Price", 
+                        min_value=0.0, 
+                        value=150.0, 
+                        key="options_strike_input"
+                    )
+                    days_to_expiry = st.number_input(
+                        "Days to Expiry", 
+                        min_value=1, 
+                        max_value=365, 
+                        value=30, 
+                        key="options_dte_input"
+                    )
+                    risk_free_rate = st.number_input(
+                        "Risk-Free Rate", 
+                        min_value=0.0, 
+                        max_value=1.0, 
+                        value=0.025, 
+                        key="options_rfr_input"
+                    )
+                    sector = st.selectbox(
+                        "Sector", 
+                        list(SECTOR_MAP.keys()), 
+                        key="options_sector_select"
+                    )
+                    
+                with col2:
+                    return_type = st.selectbox(
+                        "Return Type", 
+                        ["Simple", "Log"], 
+                        key="options_return_type_select"
+                    )
+                    comfortable_capital = st.number_input(
+                        "Comfortable Capital ($)", 
+                        min_value=0.0, 
+                        value=1000.0, 
+                        key="options_comfort_cap_input"
+                    )
+                    max_capital = st.number_input(
+                        "Max Capital ($)", 
+                        min_value=0.0, 
+                        value=5000.0, 
+                        key="options_max_cap_input"
+                    )
+                    min_capital = st.number_input(
+                        "Min Capital ($)", 
+                        min_value=0.0, 
+                        value=500.0, 
+                        key="options_min_cap_input"
+                    )
+                    pricing_model = st.selectbox(
+                        "Pricing Model", 
+                        ["Black-Scholes", "Binomial Tree", "Monte Carlo"], 
+                        key="options_pricing_model_select"
+                    )
 
-        # [Rest of Options Analysis tab code...]
+        # [Rest of your Options Analysis tab code...]
 
     with tab2:
         # Portfolio Management Tab
         st.markdown("## Portfolio Management")
         
-        with st.expander("Configure Portfolio", key="portfolio_config_expander"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                tickers_input = st.text_input("Enter tickers (comma separated)", "AAPL,MSFT,GOOGL", key="portfolio_tickers")
-                start_date = st.date_input("Start date", datetime.now() - timedelta(days=365), key="portfolio_start_date")
-                end_date = st.date_input("End date", datetime.now(), key="portfolio_end_date")
-                risk_free_rate = st.number_input("Risk-free rate", 0.0, 1.0, 0.025, key="portfolio_rfr")
+        with st.container():
+            with st.expander("Configure Portfolio", expanded=True):
+                col1, col2 = st.columns(2)
                 
-            with col2:
-                optimization_method = st.selectbox(
-                    "Optimization Method", 
-                    ["Mean-Variance", "Hierarchical Risk Parity"], 
-                    key="portfolio_optim_method"
-                )
-                return_type = st.selectbox("Return Type", ["Simple", "Log"], key="portfolio_return_type")
-                calculate_portfolio = st.button("Optimize Portfolio", key="portfolio_optim_button")
+                with col1:
+                    tickers_input = st.text_input(
+                        "Enter tickers (comma separated)", 
+                        "AAPL,MSFT,GOOGL", 
+                        key="portfolio_tickers_input"
+                    )
+                    start_date = st.date_input(
+                        "Start date", 
+                        datetime.now() - timedelta(days=365), 
+                        key="portfolio_start_date_input"
+                    )
+                    end_date = st.date_input(
+                        "End date", 
+                        datetime.now(), 
+                        key="portfolio_end_date_input"
+                    )
+                    risk_free_rate = st.number_input(
+                        "Risk-free rate", 
+                        0.0, 1.0, 0.025, 
+                        key="portfolio_rfr_input"
+                    )
+                    
+                with col2:
+                    optimization_method = st.selectbox(
+                        "Optimization Method", 
+                        ["Mean-Variance", "Hierarchical Risk Parity"], 
+                        key="portfolio_optim_method_select"
+                    )
+                    return_type = st.selectbox(
+                        "Return Type", 
+                        ["Simple", "Log"], 
+                        key="portfolio_return_type_select"
+                    )
+                    calculate_portfolio = st.button(
+                        "Optimize Portfolio", 
+                        key="portfolio_optim_button"
+                    )
 
-        # [Rest of Portfolio Management tab code...]
+        # [Rest of your Portfolio Management tab code...]
 
     # Footer
     st.markdown("---")
