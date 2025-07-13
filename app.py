@@ -10,7 +10,7 @@ import numpy as np
 from scipy.stats import norm, percentileofscore
 import plotly.graph_objs as go
 import time
-import requests
+import requestse
 from bs4 import BeautifulSoup
 from io import StringIO
 from plotly.subplots import make_subplots
@@ -1423,98 +1423,124 @@ def main():
                     )
 
     with tab2:
-    # Portfolio Management Tab
-    st.markdown("## Portfolio Management")
-    
-    with st.expander("Configure Portfolio", expanded=True):
-        col1, col2 = st.columns(2)
+        # Portfolio Management Tab
+        st.markdown("## Portfolio Management")
         
-        with col1:
-            tickers_input = st.text_input(
-                "Enter tickers (comma separated)", 
-                "AAPL,MSFT,GOOGL,AMZN,TSLA", 
-                key="portfolio_tickers_input"
-            )
-            start_date = st.date_input(
-                "Start date", 
-                datetime.now() - timedelta(days=365*3),  # 3 years of data
-                key="portfolio_start_date_input"
-            )
-            end_date = st.date_input(
-                "End date", 
-                datetime.now(), 
-                key="portfolio_end_date_input"
-            )
+        with st.expander("Configure Portfolio", expanded=True):
+            col1, col2 = st.columns(2)
             
-        with col2:
-            risk_free_rate = st.number_input(
-                "Risk-free rate", 
-                0.0, 1.0, 0.025, 
-                key="portfolio_rfr_input"
-            )
-            optimization_method = st.selectbox(
-                "Optimization Method", 
-                ["Mean-Variance", "Hierarchical Risk Parity"], 
-                key="portfolio_optim_method_select"
-            )
-            return_type = st.selectbox(
-                "Return Type", 
-                ["Simple", "Log"], 
-                key="portfolio_return_type_select"
-            )
-            
-        if st.button("Optimize Portfolio", key="portfolio_optim_button"):
-            with st.spinner("Optimizing portfolio..."):
-                try:
-                    tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
-                    
-                    valid_tickers, invalid_tickers, prices = get_valid_tickers(
-                        tickers, start_date, end_date
-                    )
-                    
-                    if not valid_tickers:
-                        st.error("No valid tickers found with sufficient data")
-                    else:
-                        if optimization_method == "Mean-Variance":
-                            weights_df, metrics, ef_data = mean_variance_optimization(
-                                prices, risk_free_rate, return_type
-                            )
+            with col1:
+                tickers_input = st.text_input(
+                    "Enter tickers (comma separated)", 
+                    "AAPL,MSFT,GOOGL,AMZN,TSLA", 
+                    key="portfolio_tickers_input"
+                )
+                start_date = st.date_input(
+                    "Start date", 
+                    datetime.now() - timedelta(days=365*3),  # 3 years of data
+                    key="portfolio_start_date_input"
+                )
+                end_date = st.date_input(
+                    "End date", 
+                    datetime.now(), 
+                    key="portfolio_end_date_input"
+                )
+                
+            with col2:
+                risk_free_rate = st.number_input(
+                    "Risk-free rate", 
+                    0.0, 1.0, 0.025, 
+                    key="portfolio_rfr_input"
+                )
+                optimization_method = st.selectbox(
+                    "Optimization Method", 
+                    ["Mean-Variance", "Hierarchical Risk Parity"], 
+                    key="portfolio_optim_method_select"
+                )
+                return_type = st.selectbox(
+                    "Return Type", 
+                    ["Simple", "Log"], 
+                    key="portfolio_return_type_select"
+                )
+                
+            if st.button("Optimize Portfolio", key="portfolio_optim_button"):
+                with st.spinner("Optimizing portfolio..."):
+                    try:
+                        tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
+                        
+                        valid_tickers, invalid_tickers, prices = get_valid_tickers(
+                            tickers, start_date, end_date
+                        )
+                        
+                        if not valid_tickers:
+                            st.error("No valid tickers found with sufficient data")
+                        else:
+                            if optimization_method == "Mean-Variance":
+                                weights_df, metrics, ef_data = mean_variance_optimization(
+                                    prices, risk_free_rate, return_type
+                                )
+                                
+                                if weights_df is not None:
+                                    st.session_state.portfolio_results = {
+                                        "weights": weights_df,
+                                        "metrics": pd.DataFrame.from_dict(metrics, orient='index', columns=['Value']),
+                                        "plot_data": ef_data,
+                                        "method": "Mean-Variance",
+                                        "tickers": valid_tickers
+                                    }
+                                    st.session_state.portfolio_analysis_done = True
                             
-                            if weights_df is not None:
+                            elif optimization_method == "Hierarchical Risk Parity":
+                                weights_df, metrics, link, dist = hierarchical_risk_parity(
+                                    prices, return_type
+                                )
+                                
                                 st.session_state.portfolio_results = {
                                     "weights": weights_df,
                                     "metrics": pd.DataFrame.from_dict(metrics, orient='index', columns=['Value']),
-                                    "plot_data": ef_data,
-                                    "method": "Mean-Variance",
-                                    "tickers": valid_tickers
+                                    "link": link,
+                                    "tickers": valid_tickers,
+                                    "method": "HRP"
                                 }
                                 st.session_state.portfolio_analysis_done = True
-                        
-                        elif optimization_method == "Hierarchical Risk Parity":
-                            weights_df, metrics, link, dist = hierarchical_risk_parity(
-                                prices, return_type
-                            )
-                            
-                            st.session_state.portfolio_results = {
-                                "weights": weights_df,
-                                "metrics": pd.DataFrame.from_dict(metrics, orient='index', columns=['Value']),
-                                "link": link,
-                                "tickers": valid_tickers,
-                                "method": "HRP"
-                            }
-                            st.session_state.portfolio_analysis_done = True
-                
-                except Exception as e:
-                    st.error(f"Portfolio optimization failed: {str(e)}")
-                    st.error(traceback.format_exc())
-    
-    # Add disclaimer
-    st.markdown("""
-    <div style="margin-top: 2rem; padding: 1rem; background-color: rgba(255,0,0,0.1); border-left: 4px solid #ff0000;">
-        <strong style="color: #ff0000;">DISCLAIMER:</strong> This is for educational purposes only. Not professional financial advice. 
-        Past performance is not indicative of future results. Investing involves risk, including possible loss of principal.
-    </div>
-    """, unsafe_allow_html=True)
+                    
+                    except Exception as e:
+                        st.error(f"Portfolio optimization failed: {str(e)}")
+                        st.error(traceback.format_exc())
+        
+        # Display portfolio results
+        if st.session_state.portfolio_analysis_done and st.session_state.portfolio_results:
+            results = st.session_state.portfolio_results
+            
+            st.markdown("### Optimal Weights")
+            st.dataframe(results["weights"].style.format("{:.2%}"))
+            
+            st.markdown("### Portfolio Metrics")
+            st.dataframe(results["metrics"], use_container_width=True)
+            
+            if results["method"] == "Mean-Variance":
+                st.markdown("### Efficient Frontier")
+                fig = plot_efficient_frontier(
+                    results["plot_data"], 
+                    results["weights"], 
+                    results["metrics"]
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.markdown("### Hierarchical Clustering")
+                fig = plot_dendrogram(
+                    results["link"], 
+                    results["tickers"]
+                )
+                st.plotly_chart(fig, use_container_width=True)
+        
+        # Disclaimer
+        st.markdown("""
+        <div style="margin-top: 2rem; padding: 1rem; background-color: rgba(255,0,0,0.1); border-left: 4px solid #ff0000;">
+            <strong style="color: #ff0000;">DISCLAIMER:</strong> This is for educational purposes only. Not professional financial advice. 
+            Past performance is not indicative of future results. Investing involves risk, including possible loss of principal.
+        </div>
+        """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
