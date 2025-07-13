@@ -818,32 +818,54 @@ def mean_variance_optimization(prices, risk_free_rate, return_type):
         else:
             returns = prices.pct_change().dropna()
         
+        # Check if we have enough data points
+        if len(returns) < 2:
+            st.warning("Not enough data points for optimization")
+            return None
+            
         # Calculate expected returns and covariance matrix
         mu = returns.mean()
         S = returns.cov()
         
+        # Check for NaN values
+        if mu.isna().any() or S.isna().any().any():
+            st.warning("NaN values detected in returns or covariance matrix")
+            return None
+            
         # Perform optimization
         ef = EfficientFrontier(mu, S)
-        weights = ef.max_sharpe(risk_free_rate=risk_free_rate)
-        cleaned_weights = ef.clean_weights()
+        try:
+            weights = ef.max_sharpe(risk_free_rate=risk_free_rate)
+            cleaned_weights = ef.clean_weights()
+        except Exception as e:
+            st.warning(f"Optimization failed: {str(e)}")
+            return None
         
         # Convert weights to dataframe
         weights_df = pd.DataFrame.from_dict(cleaned_weights, orient='index', columns=['Weight'])
         
         # Get performance metrics
-        performance = ef.portfolio_performance(risk_free_rate=risk_free_rate)
-        metrics_df = pd.DataFrame({
-            'Metric': ['Expected Return', 'Annual Volatility', 'Sharpe Ratio'],
-            'Value': performance
-        })
+        try:
+            performance = ef.portfolio_performance(risk_free_rate=risk_free_rate)
+            metrics_df = pd.DataFrame({
+                'Metric': ['Expected Return', 'Annual Volatility', 'Sharpe Ratio'],
+                'Value': performance
+            })
+        except Exception as e:
+            st.warning(f"Performance calculation failed: {str(e)}")
+            return None
         
         # Generate plot data
-        plot_data = generate_plot_data(ef, mu, S, risk_free_rate)
-        
+        try:
+            plot_data = generate_plot_data(ef, mu, S, risk_free_rate)
+        except Exception as e:
+            st.warning(f"Plot data generation failed: {str(e)}")
+            plot_data = None
+            
         return weights_df, metrics_df, plot_data
     
     except Exception as e:
-        print(f"Error in mean_variance_optimization: {e}")
+        st.error(f"Error in mean_variance_optimization: {e}")
         return None
 def plot_efficient_frontier(plot_data, weights_df, metrics):
     """
