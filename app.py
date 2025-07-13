@@ -939,26 +939,14 @@ def main():
     st.title("Options Profit & Capital Advisor")
 
     # Initialize session state variables
-    session_vars = {
-        "calculation_done": False,
-        "export_csv": None,
-        "export_pdf": None,
-        "greeks_df": None,
-        "summary_info": None,
-        "plot_fig": None,
-        "input_data": None,
-        "trading_advice": None,
-        "bs_sensitivities_fig": None,
-        "iv_percentile": None,
-        "is_stock": None,
-        "financials_df": None,
-        "portfolio_analysis_done": False,
-        "portfolio_results": None
-    }
-    
-    for key, value in session_vars.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+    if 'ticker' not in st.session_state:
+        st.session_state.ticker = "AAPL"
+    if 'calculation_done' not in st.session_state:
+        st.session_state.calculation_done = False
+    if 'portfolio_analysis_done' not in st.session_state:
+        st.session_state.portfolio_analysis_done = False
+    if 'portfolio_results' not in st.session_state:
+        st.session_state.portfolio_results = None
 
     # Create tabs
     tab1, tab2 = st.tabs(["Options Analysis", "Portfolio Management"])
@@ -973,9 +961,11 @@ def main():
             with col1:
                 ticker = st.text_input(
                     "Stock Ticker", 
-                    value="AAPL", 
+                    value=st.session_state.ticker,
                     key="options_ticker_input"
                 ).upper()
+                st.session_state.ticker = ticker
+                
                 option_type = st.selectbox(
                     "Option Type", 
                     ["call", "put"], 
@@ -1037,39 +1027,59 @@ def main():
                     key="options_pricing_model_select"
                 )
 
-        # Check if ticker is a stock and get financials
-        if ticker:
-            is_stock, financials_df = get_company_financials(ticker)
-            st.session_state.is_stock = is_stock
-            st.session_state.financials_df = financials_df
-            
-            if not is_stock:
-                st.warning(f"⚠️ {ticker} does not appear to be a stock. This tool works best with individual stocks.")
-            elif financials_df is not None:
-                with st.expander("View Company Financials", expanded=True, key="financials_expander"):
+        # Display company financials
+        if st.session_state.ticker:
+            is_stock, financials_df = get_company_financials(st.session_state.ticker)
+            if is_stock and financials_df is not None:
+                with st.expander("View Company Financials", expanded=True):
                     st.dataframe(financials_df, use_container_width=True)
+            elif not is_stock:
+                st.warning(f"⚠️ {st.session_state.ticker} does not appear to be a stock.")
 
-        # Calculation button
+        # Calculate button and results
         st.markdown("---")
-        calculate_clicked = st.button("Calculate Profit & Advice", key="calculate_button")
-
-        # When Calculate button is pressed
-        if calculate_clicked:
+        if st.button("Calculate Profit & Advice", key="calculate_button"):
             with st.spinner("Calculating option values and generating advice..."):
                 try:
-                    # [Previous calculation code here...]
+                    # Perform calculations
+                    T = days_to_expiry / 365
+                    stock = yf.Ticker(st.session_state.ticker)
+                    stock_data = stock.history(period="1d")
+                    
+                    if stock_data.empty:
+                        st.error("Could not fetch stock data.")
+                        return
+                    
+                    S = float(stock_data["Close"].iloc[-1])
+                    
+                    # Calculate option price
+                    if pricing_model == "Black-Scholes":
+                        price = black_scholes_price(S, strike_price, T, risk_free_rate, 0.2, option_type)
+                    elif pricing_model == "Binomial Tree":
+                        price = binomial_tree_price(S, strike_price, T, risk_free_rate, 0.2, option_type)
+                    else:  # Monte Carlo
+                        price = monte_carlo_price(S, strike_price, T, risk_free_rate, 0.2, option_type)
+                    
+                    # Calculate Greeks
+                    greeks = black_scholes_greeks(S, strike_price, T, risk_free_rate, 0.2, option_type)
+                    
+                    # Store results
                     st.session_state.calculation_done = True
+                    st.session_state.summary_info = {
+                        "Stock Price": S,
+                        "Option Price": price,
+                        "Greeks": greeks
+                    }
                     st.success("Calculation complete!")
                 except Exception as e:
                     st.error(f"Calculation failed: {str(e)}")
-                    st.error(traceback.format_exc())
-                    st.session_state.calculation_done = False
 
-        # Display results if calculation is done
+        # Display results
         if st.session_state.calculation_done:
             st.markdown("## Analysis Results")
-            
-            # [Display results code here...]
+            st.write("Stock Price:", st.session_state.summary_info["Stock Price"])
+            st.write("Option Price:", st.session_state.summary_info["Option Price"])
+            st.write("Greeks:", st.session_state.summary_info["Greeks"])
 
     with tab2:
         # Portfolio Management Tab
@@ -1111,65 +1121,55 @@ def main():
                     ["Simple", "Log"], 
                     key="portfolio_return_type_select"
                 )
-                calculate_portfolio = st.button(
-                    "Optimize Portfolio", 
-                    key="portfolio_optim_button"
-                )
-
-        if calculate_portfolio:
-            with st.spinner("Optimizing portfolio..."):
-                try:
-                    tickers = [t.strip().upper() for t in tickers_input.split(",")]
-                    
-                    # Get valid tickers and prices
-                    valid_tickers, invalid_tickers, prices = get_valid_tickers(
-                        tickers, start_date, end_date
-                    )
-                    
-                    if invalid_tickers:
-                        st.warning(f"Invalid tickers ignored: {', '.join(invalid_tickers)}")
-                    
-                    if not valid_tickers:
-                        st.error("No valid tickers found")
-                        return
-                    
-                    # Perform optimization
-                    if optimization_method == "Mean-Variance":
-                        weights_df, metrics, ef_data = mean_variance_optimization(
-                            prices, risk_free_rate, return_type
-                        )
-                        
-                        # Store results
-                        st.session_state.portfolio_results = {
-                            "weights": weights_df,
-                            "metrics": metrics,
-                            "plot_data": ef_data,
-                            "method": "Mean-Variance"
-                        }
-                        
-                    elif optimization_method == "Hierarchical Risk Parity":
-                        weights_df, metrics, link, dist = hierarchical_risk_parity(
-                            prices, return_type
-                        )
-                        
-                        # Store results
-                        st.session_state.portfolio_results = {
-                            "weights": weights_df,
-                            "metrics": metrics,
-                            "link": link,
-                            "tickers": valid_tickers,
-                            "method": "HRP"
-                        }
-                    
-                    st.session_state.portfolio_analysis_done = True
-                    st.success("Portfolio optimization complete!")
-                    
-                except Exception as e:
-                    st.error(f"Portfolio optimization failed: {str(e)}")
-                    st.error(traceback.format_exc())
+                
+                if st.button("Optimize Portfolio", key="portfolio_optim_button"):
+                    st.session_state.portfolio_analysis_done = False
+                    with st.spinner("Optimizing portfolio..."):
+                        try:
+                            tickers = [t.strip().upper() for t in tickers_input.split(",")]
+                            
+                            valid_tickers, invalid_tickers, prices = get_valid_tickers(
+                                tickers, start_date, end_date
+                            )
+                            
+                            if invalid_tickers:
+                                st.warning(f"Invalid tickers ignored: {', '.join(invalid_tickers)}")
+                            
+                            if not valid_tickers:
+                                st.error("No valid tickers found")
+                            else:
+                                if optimization_method == "Mean-Variance":
+                                    weights_df, metrics, ef_data = mean_variance_optimization(
+                                        prices, risk_free_rate, return_type
+                                    )
+                                    
+                                    st.session_state.portfolio_results = {
+                                        "weights": weights_df,
+                                        "metrics": metrics,
+                                        "plot_data": ef_data,
+                                        "method": "Mean-Variance"
+                                    }
+                                    
+                                elif optimization_method == "Hierarchical Risk Parity":
+                                    weights_df, metrics, link, dist = hierarchical_risk_parity(
+                                        prices, return_type
+                                    )
+                                    
+                                    st.session_state.portfolio_results = {
+                                        "weights": weights_df,
+                                        "metrics": metrics,
+                                        "link": link,
+                                        "tickers": valid_tickers,
+                                        "method": "HRP"
+                                    }
+                                
+                                st.session_state.portfolio_analysis_done = True
+                                
+                        except Exception as e:
+                            st.error(f"Portfolio optimization failed: {str(e)}")
 
         # Display portfolio results
-        if st.session_state.portfolio_analysis_done:
+        if st.session_state.portfolio_analysis_done and st.session_state.portfolio_results:
             results = st.session_state.portfolio_results
             
             st.markdown("### Optimal Weights")
@@ -1194,7 +1194,29 @@ def main():
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
-   
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div class="footer">
+        <div style="margin-bottom: 1rem;">
+            <span style="color: var(--neon-blue); font-size: 1.2rem;" class="flicker">MADE WITH ❤️ BY</span>
+            <span style="color: var(--neon-green); font-weight: bold; font-size: 1.3rem; text-shadow: 0 0 10px var(--neon-green);">GEABRAL MULUGETA</span>
+        </div>
+        <div style="margin-top: 1rem;">
+            <a href="https://github.com/gghhxx11299" target="_blank">GITHUB</a>
+            <span style="color: var(--neon-blue);"> | </span>
+            <a href="https://www.linkedin.com/in/geabral-mulugeta-334358327/" target="_blank">LINKEDIN</a>
+            <span style="color: var(--neon-blue);"> | </span>
+            <a href="#" onclick="alert('COMING SOON: PERSONAL WEBSITE')">PORTFOLIO</a>
+        </div>
+        <div class="cyberpunk-divider"></div>
+        <div style="font-size: 0.8rem; color: var(--neon-blue);">
+            <span class="cyberpunk-badge">ALPHA 2.0</span>
+            <span class="cyberpunk-badge">NEURAL NET</span>
+            <span class="cyberpunk-badge">OPTIMIZED</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
