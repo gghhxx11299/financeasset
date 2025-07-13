@@ -780,28 +780,43 @@ def get_company_financials(ticker):
         st.error(f"Error fetching financial data: {e}")
         return False, None
 
-def get_valid_tickers(tickers, start, end):
-    valid = []
-    invalid = []
-    price_data = {}
+def get_valid_tickers(tickers, start_date, end_date):
+    """
+    Fetch price data for multiple tickers and identify which are valid.
     
-    for t in tickers:
+    Args:
+        tickers (list): List of ticker symbols
+        start_date (datetime): Start date for historical data
+        end_date (datetime): End date for historical data
+    
+    Returns:
+        tuple: (valid_tickers, invalid_tickers, prices_dict)
+            - valid_tickers: List of tickers with valid data
+            - invalid_tickers: List of tickers without valid data
+            - prices_dict: Dictionary of price Series for valid tickers
+    """
+    valid_tickers = []
+    invalid_tickers = []
+    prices_dict = {}
+    
+    for ticker in tickers:
         try:
             # Download historical data
-            data = yf.download(t, start=start, end=end, progress=False)
-            if not data.empty and len(data) >= 60:  # Ensure we have enough data points
-                valid.append(t)
-                price_data[t] = data['Close'].rename(t)  # Store the closing prices with ticker name
-            else:
-                invalid.append(t)
+            data = yf.download(ticker, start=start_date, end=end_date)
+            
+            if data.empty or len(data) < 10:  # Require at least 10 data points
+                invalid_tickers.append(ticker)
+                continue
+                
+            # Store closing prices
+            prices_dict[ticker] = data['Close']
+            valid_tickers.append(ticker)
+            
         except Exception as e:
-            invalid.append(t)
-            st.warning(f"Failed to download data for {t}: {str(e)}")
+            print(f"Failed to download data for {ticker}: {str(e)}")
+            invalid_tickers.append(ticker)
     
-    if invalid:
-        st.warning(f"Invalid tickers ignored: {', '.join(invalid)}")
-    
-    return valid, invalid, price_data
+    return valid_tickers, invalid_tickers, prices_dict
 
 def mean_variance_optimization(price_data, risk_free_rate, return_type):
     # Convert price data to DataFrame
