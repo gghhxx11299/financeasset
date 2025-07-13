@@ -780,8 +780,6 @@ def get_company_financials(ticker):
         st.error(f"Error fetching financial data: {e}")
         return False, None
 
-
-
 def get_valid_tickers(tickers, start, end):
     valid = []
     invalid = []
@@ -1332,5 +1330,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
