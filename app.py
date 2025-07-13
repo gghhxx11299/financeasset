@@ -905,10 +905,10 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
                 {'type': 'eq', 'fun': lambda x: np.dot(x, expected_returns) - target}
             )
             result = minimize(lambda x: np.sqrt(np.dot(x.T, np.dot(cov_matrix, x)))),
-                            initial_weights,
-                            method='SLSQP',
-                            bounds=bounds,
-                            constraints=constraints)
+                initial_weights,
+                method='SLSQP',
+                bounds=bounds,
+                constraints=constraints)
             if result.success:
                 frontier_volatility.append(result['fun'])
                 frontier_returns.append(target)
