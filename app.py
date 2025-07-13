@@ -787,14 +787,61 @@ def get_valid_tickers(tickers, start, end):
     for t in tickers:
         try:
             df = yf.download(t, start=start, end=end)["Close"]
-            if len(df) >= 60:
+            if len(df) >= 60:  # Require at least 60 data points
                 valid.append(t)
-                prices[t] = df
+                prices[t] = df  # Store the entire series, not just scalar values
             else:
                 invalid.append(t)
         except:
             invalid.append(t)
     return valid, invalid, prices
+
+def mean_variance_optimization(prices, risk_free_rate, return_type):
+    # Convert prices dictionary to DataFrame
+    df = pd.DataFrame(prices)
+    
+    if df.empty or len(df.columns) < 1:
+        raise ValueError("Not enough valid price data for optimization")
+    
+    if return_type == "Log":
+        returns = np.log(df / df.shift(1)).dropna()
+    else:
+        returns = df.pct_change().dropna()
+    
+    mean_returns = returns.mean()
+    cov_matrix = returns.cov()
+    num_assets = len(df.columns)
+    
+    results = np.zeros((3, 10000))
+    weight_array = []
+    
+    for i in range(10000):
+        weights = np.random.dirichlet(np.ones(num_assets))
+        ret = np.dot(weights, mean_returns) * 252
+        vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix * 252, weights)))
+        sharpe = (ret - risk_free_rate) / vol if vol > 0 else 0
+        results[0,i] = ret
+        results[1,i] = vol
+        results[2,i] = sharpe
+        weight_array.append(weights)
+    
+    max_sharpe_idx = np.argmax(results[2])
+    max_sharpe_w = weight_array[max_sharpe_idx]
+    
+    ef_data = pd.DataFrame({
+        "Return": results[0],
+        "Volatility": results[1],
+        "Sharpe": results[2],
+    })
+    
+    weights_df = pd.DataFrame(max_sharpe_w, index=df.columns, columns=["Optimal Weight"])
+    metrics = {
+        "Expected Return": results[0,max_sharpe_idx],
+        "Volatility": results[1,max_sharpe_idx],
+        "Sharpe Ratio": results[2,max_sharpe_idx]
+    }
+    
+    return weights_df, metrics, ef_data
 
 def mean_variance_optimization(prices, risk_free_rate, return_type):
     df = pd.DataFrame(prices)
