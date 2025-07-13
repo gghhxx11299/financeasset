@@ -784,17 +784,23 @@ def get_valid_tickers(tickers, start, end):
     valid = []
     invalid = []
     price_data = {}
+    
     for t in tickers:
         try:
             # Download historical data
-            data = yf.download(t, start=start, end=end)
+            data = yf.download(t, start=start, end=end, progress=False)
             if not data.empty and len(data) >= 60:  # Ensure we have enough data points
                 valid.append(t)
-                price_data[t] = data['Close']  # Store the closing prices
+                price_data[t] = data['Close'].rename(t)  # Store the closing prices with ticker name
             else:
                 invalid.append(t)
         except Exception as e:
             invalid.append(t)
+            st.warning(f"Failed to download data for {t}: {str(e)}")
+    
+    if invalid:
+        st.warning(f"Invalid tickers ignored: {', '.join(invalid)}")
+    
     return valid, invalid, price_data
 
 def mean_variance_optimization(price_data, risk_free_rate, return_type):
@@ -844,87 +850,64 @@ def mean_variance_optimization(price_data, risk_free_rate, return_type):
     
     return weights_df, metrics, ef_data
 
-def mean_variance_optimization(prices, risk_free_rate, return_type):
-    # Convert prices dictionary to DataFrame
-    df = pd.DataFrame(prices)
-    
-    if df.empty or len(df.columns) < 1:
-        raise ValueError("Not enough valid price data for optimization")
-    
-    if return_type == "Log":
-        returns = np.log(df / df.shift(1)).dropna()
-    else:
-        returns = df.pct_change().dropna()
-    
-    mean_returns = returns.mean()
-    cov_matrix = returns.cov()
-    num_assets = len(df.columns)
-    
-    results = np.zeros((3, 10000))
-    weight_array = []
-    
-    for i in range(10000):
-        weights = np.random.dirichlet(np.ones(num_assets))
-        ret = np.dot(weights, mean_returns) * 252
-        vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix * 252, weights)))
-        sharpe = (ret - risk_free_rate) / vol if vol > 0 else 0
-        results[0,i] = ret
-        results[1,i] = vol
-        results[2,i] = sharpe
-        weight_array.append(weights)
-    
-    max_sharpe_idx = np.argmax(results[2])
-    max_sharpe_w = weight_array[max_sharpe_idx]
-    
-    ef_data = pd.DataFrame({
-        "Return": results[0],
-        "Volatility": results[1],
-        "Sharpe": results[2],
-    })
-    
-    weights_df = pd.DataFrame(max_sharpe_w, index=df.columns, columns=["Optimal Weight"])
-    metrics = {
-        "Expected Return": results[0,max_sharpe_idx],
-        "Volatility": results[1,max_sharpe_idx],
-        "Sharpe Ratio": results[2,max_sharpe_idx]
-    }
-    
-    return weights_df, metrics, ef_data
 
-def mean_variance_optimization(prices, risk_free_rate, return_type):
-    df = pd.DataFrame(prices)
-    if return_type == "Log":
-        returns = np.log(df / df.shift(1)).dropna()
-    else:
-        returns = df.pct_change().dropna()
-    mean_returns = returns.mean()
-    cov_matrix = returns.cov()
-    num_assets = len(df.columns)
-    results = np.zeros((3, 10000))
-    weight_array = []
-    for i in range(10000):
-        weights = np.random.dirichlet(np.ones(num_assets))
-        ret = np.dot(weights, mean_returns) * 252
-        vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix * 252, weights)))
-        sharpe = (ret - risk_free_rate) / vol if vol > 0 else 0
-        results[0,i] = ret
-        results[1,i] = vol
-        results[2,i] = sharpe
-        weight_array.append(weights)
-    max_sharpe_idx = np.argmax(results[2])
-    max_sharpe_w = weight_array[max_sharpe_idx]
-    ef_data = pd.DataFrame({
-        "Return": results[0],
-        "Volatility": results[1],
-        "Sharpe": results[2],
-    })
-    weights_df = pd.DataFrame(max_sharpe_w, index=df.columns, columns=["Optimal Weight"])
-    metrics = {
-        "Expected Return": results[0,max_sharpe_idx],
-        "Volatility": results[1,max_sharpe_idx],
-        "Sharpe Ratio": results[2,max_sharpe_idx]
-    }
-    return weights_df, metrics, ef_data
+
+def mean_variance_optimization(price_data, risk_free_rate, return_type):
+    try:
+        # Convert price data to DataFrame
+        if not price_data:
+            raise ValueError("No valid price data available for optimization")
+            
+        # Ensure all price series have the same index (dates)
+        aligned_prices = pd.concat(price_data.values(), axis=1, keys=price_data.keys())
+        df = aligned_prices.dropna()  # Remove rows with missing values
+        
+        if df.empty:
+            raise ValueError("Not enough overlapping price data for optimization")
+        
+        if return_type == "Log":
+            returns = np.log(df / df.shift(1)).dropna()
+        else:
+            returns = df.pct_change().dropna()
+        
+        mean_returns = returns.mean()
+        cov_matrix = returns.cov()
+        num_assets = len(df.columns)
+        
+        results = np.zeros((3, 10000))
+        weight_array = []
+        
+        for i in range(10000):
+            weights = np.random.dirichlet(np.ones(num_assets))
+            ret = np.dot(weights, mean_returns) * 252
+            vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix * 252, weights)))
+            sharpe = (ret - risk_free_rate) / vol if vol > 0 else 0
+            results[0,i] = ret
+            results[1,i] = vol
+            results[2,i] = sharpe
+            weight_array.append(weights)
+        
+        max_sharpe_idx = np.argmax(results[2])
+        max_sharpe_w = weight_array[max_sharpe_idx]
+        
+        ef_data = pd.DataFrame({
+            "Return": results[0],
+            "Volatility": results[1],
+            "Sharpe": results[2],
+        })
+        
+        weights_df = pd.DataFrame(max_sharpe_w, index=df.columns, columns=["Optimal Weight"])
+        metrics = {
+            "Expected Return": results[0,max_sharpe_idx],
+            "Volatility": results[1,max_sharpe_idx],
+            "Sharpe Ratio": results[2,max_sharpe_idx]
+        }
+        
+        return weights_df, metrics, ef_data
+        
+    except Exception as e:
+        st.error(f"Optimization failed: {str(e)}")
+        return None, None, None
 
 def plot_efficient_frontier(ef_data, weights_df, metrics):
     fig = go.Figure()
@@ -1440,124 +1423,98 @@ def main():
                     )
 
     with tab2:
-        # Portfolio Management Tab
-        st.markdown("## Portfolio Management")
+    # Portfolio Management Tab
+    st.markdown("## Portfolio Management")
+    
+    with st.expander("Configure Portfolio", expanded=True):
+        col1, col2 = st.columns(2)
         
-        with st.expander("Configure Portfolio", expanded=True):
-            col1, col2 = st.columns(2)
+        with col1:
+            tickers_input = st.text_input(
+                "Enter tickers (comma separated)", 
+                "AAPL,MSFT,GOOGL,AMZN,TSLA", 
+                key="portfolio_tickers_input"
+            )
+            start_date = st.date_input(
+                "Start date", 
+                datetime.now() - timedelta(days=365*3),  # 3 years of data
+                key="portfolio_start_date_input"
+            )
+            end_date = st.date_input(
+                "End date", 
+                datetime.now(), 
+                key="portfolio_end_date_input"
+            )
             
-            with col1:
-                tickers_input = st.text_input(
-                    "Enter tickers (comma separated)", 
-                    "AAPL,MSFT,GOOGL", 
-                    key="portfolio_tickers_input"
-                )
-                start_date = st.date_input(
-                    "Start date", 
-                    datetime.now() - timedelta(days=365), 
-                    key="portfolio_start_date_input"
-                )
-                end_date = st.date_input(
-                    "End date", 
-                    datetime.now(), 
-                    key="portfolio_end_date_input"
-                )
-                risk_free_rate = st.number_input(
-                    "Risk-free rate", 
-                    0.0, 1.0, 0.025, 
-                    key="portfolio_rfr_input"
-                )
-                
-            with col2:
-                optimization_method = st.selectbox(
-                    "Optimization Method", 
-                    ["Mean-Variance", "Hierarchical Risk Parity"], 
-                    key="portfolio_optim_method_select"
-                )
-                return_type = st.selectbox(
-                    "Return Type", 
-                    ["Simple", "Log"], 
-                    key="portfolio_return_type_select"
-                )
-                
-                if st.button("Optimize Portfolio", key="portfolio_optim_button"):
-                    st.session_state.portfolio_analysis_done = False
-                    with st.spinner("Optimizing portfolio..."):
-                        try:
-                            tickers = [t.strip().upper() for t in tickers_input.split(",")]
-                            
-                            valid_tickers, invalid_tickers, prices = get_valid_tickers(
-                                tickers, start_date, end_date
+        with col2:
+            risk_free_rate = st.number_input(
+                "Risk-free rate", 
+                0.0, 1.0, 0.025, 
+                key="portfolio_rfr_input"
+            )
+            optimization_method = st.selectbox(
+                "Optimization Method", 
+                ["Mean-Variance", "Hierarchical Risk Parity"], 
+                key="portfolio_optim_method_select"
+            )
+            return_type = st.selectbox(
+                "Return Type", 
+                ["Simple", "Log"], 
+                key="portfolio_return_type_select"
+            )
+            
+        if st.button("Optimize Portfolio", key="portfolio_optim_button"):
+            with st.spinner("Optimizing portfolio..."):
+                try:
+                    tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
+                    
+                    valid_tickers, invalid_tickers, prices = get_valid_tickers(
+                        tickers, start_date, end_date
+                    )
+                    
+                    if not valid_tickers:
+                        st.error("No valid tickers found with sufficient data")
+                    else:
+                        if optimization_method == "Mean-Variance":
+                            weights_df, metrics, ef_data = mean_variance_optimization(
+                                prices, risk_free_rate, return_type
                             )
                             
-                            if invalid_tickers:
-                                st.warning(f"Invalid tickers ignored: {', '.join(invalid_tickers)}")
-                            
-                            if not valid_tickers:
-                                st.error("No valid tickers found")
-                            else:
-                                if optimization_method == "Mean-Variance":
-                                    weights_df, metrics, ef_data = mean_variance_optimization(
-                                        prices, risk_free_rate, return_type
-                                    )
-                                    
-                                    # Convert metrics to proper DataFrame format
-                                    metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
-                                    
-                                    st.session_state.portfolio_results = {
-                                        "weights": weights_df,
-                                        "metrics": metrics_df,
-                                        "plot_data": ef_data,
-                                        "method": "Mean-Variance"
-                                    }
-                                    
-                                elif optimization_method == "Hierarchical Risk Parity":
-                                    weights_df, metrics, link, dist = hierarchical_risk_parity(
-                                        prices, return_type
-                                    )
-                                    
-                                    # Convert metrics to proper DataFrame format
-                                    metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
-                                    
-                                    st.session_state.portfolio_results = {
-                                        "weights": weights_df,
-                                        "metrics": metrics_df,
-                                        "link": link,
-                                        "tickers": valid_tickers,
-                                        "method": "HRP"
-                                    }
-                                
+                            if weights_df is not None:
+                                st.session_state.portfolio_results = {
+                                    "weights": weights_df,
+                                    "metrics": pd.DataFrame.from_dict(metrics, orient='index', columns=['Value']),
+                                    "plot_data": ef_data,
+                                    "method": "Mean-Variance",
+                                    "tickers": valid_tickers
+                                }
                                 st.session_state.portfolio_analysis_done = True
-                                
-                        except Exception as e:
-                            st.error(f"Portfolio optimization failed: {str(e)}")
-                            st.error(traceback.format_exc())
-
-        # Display portfolio results
-        if st.session_state.portfolio_analysis_done and st.session_state.portfolio_results:
-            results = st.session_state.portfolio_results
-            
-            st.markdown("### Optimal Weights")
-            st.dataframe(results["weights"].style.format("{:.2%}"))
-            
-            st.markdown("### Portfolio Metrics")
-            st.dataframe(results["metrics"], use_container_width=True)
-            
-            if results["method"] == "Mean-Variance":
-                st.markdown("### Efficient Frontier")
-                fig = plot_efficient_frontier(
-                    results["plot_data"], 
-                    results["weights"], 
-                    results["metrics"]
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.markdown("### Hierarchical Clustering")
-                fig = plot_dendrogram(
-                    results["link"], 
-                    results["tickers"]
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                        
+                        elif optimization_method == "Hierarchical Risk Parity":
+                            weights_df, metrics, link, dist = hierarchical_risk_parity(
+                                prices, return_type
+                            )
+                            
+                            st.session_state.portfolio_results = {
+                                "weights": weights_df,
+                                "metrics": pd.DataFrame.from_dict(metrics, orient='index', columns=['Value']),
+                                "link": link,
+                                "tickers": valid_tickers,
+                                "method": "HRP"
+                            }
+                            st.session_state.portfolio_analysis_done = True
+                
+                except Exception as e:
+                    st.error(f"Portfolio optimization failed: {str(e)}")
+                    st.error(traceback.format_exc())
+    
+    # Add disclaimer
+    st.markdown("""
+    <div style="margin-top: 2rem; padding: 1rem; background-color: rgba(255,0,0,0.1); border-left: 4px solid #ff0000;">
+        <strong style="color: #ff0000;">DISCLAIMER:</strong> This is for educational purposes only. Not professional financial advice. 
+        Past performance is not indicative of future results. Investing involves risk, including possible loss of principal.
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
