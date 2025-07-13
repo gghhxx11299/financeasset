@@ -1700,19 +1700,19 @@ def main():
                     try:
                         tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
                         
-                        # Get price data - this now correctly returns a dictionary of Series
+                        # Get price data
                         valid_tickers, invalid_tickers, prices = get_valid_tickers(
                             tickers, start_date, end_date
                         )
                         
                         if invalid_tickers:
-                            st.warning(f"Invalid tickers: {', '.join(invalid_tickers)}")
+                            st.warning(f"Invalid tickers ignored: {', '.join(invalid_tickers)}")
                         
                         if not valid_tickers:
                             st.error("No valid tickers with sufficient data")
                         else:
                             if optimization_method == "Mean-Variance":
-                                weights_df, metrics, ef_data = mean_variance_optimization(
+                                weights_df, metrics, plot_data = mean_variance_optimization(
                                     prices, risk_free_rate, return_type
                                 )
                                 
@@ -1720,7 +1720,7 @@ def main():
                                     st.session_state.portfolio_results = {
                                         "weights": weights_df,
                                         "metrics": pd.DataFrame.from_dict(metrics, orient='index', columns=['Value']),
-                                        "plot_data": ef_data,
+                                        "plot_data": plot_data,
                                         "method": "Mean-Variance",
                                         "tickers": valid_tickers
                                     }
@@ -1777,6 +1777,239 @@ def main():
             Past performance is not indicative of future results. Investing involves risk, including possible loss of principal.
         </div>
         """, unsafe_allow_html=True)
+
+# Supporting functions (must be defined or imported)
+def get_valid_tickers(tickers, start_date, end_date):
+    """Fetch price data for multiple tickers and identify which are valid."""
+    valid_tickers = []
+    invalid_tickers = []
+    prices_dict = {}
+    
+    for ticker in tickers:
+        try:
+            # Download historical data
+            data = yf.download(ticker, start=start_date, end=end_date)
+            
+            if data.empty or len(data) < 10:  # Require at least 10 data points
+                invalid_tickers.append(ticker)
+                continue
+                
+            # Store closing prices
+            prices_dict[ticker] = data['Close']
+            valid_tickers.append(ticker)
+            
+        except Exception as e:
+            print(f"Failed to download data for {ticker}: {str(e)}")
+            invalid_tickers.append(ticker)
+    
+    return valid_tickers, invalid_tickers, prices_dict
+
+def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple"):
+    """Perform mean-variance optimization and calculate efficient frontier."""
+    try:
+        # Convert prices to DataFrame
+        prices_df = pd.DataFrame(prices)
+        
+        # Calculate returns
+        if return_type == "Simple":
+            returns = prices_df.pct_change().dropna()
+        else:  # Log returns
+            returns = np.log(prices_df / prices_df.shift(1)).dropna()
+        
+        # Calculate expected returns and covariance matrix
+        expected_returns = returns.mean() * 252  # Annualize
+        cov_matrix = returns.cov() * 252  # Annualize
+        
+        # Optimize for max Sharpe ratio
+        def negative_sharpe(weights, expected_returns, cov_matrix, risk_free_rate):
+            port_return = np.dot(weights, expected_returns)
+            port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+            sharpe = (port_return - risk_free_rate) / port_vol
+            return -sharpe
+        
+        # Constraints and bounds
+        num_assets = len(expected_returns)
+        args = (expected_returns, cov_matrix, risk_free_rate)
+        constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+        bounds = tuple((0, 1) for asset in range(num_assets))
+        initial_weights = num_assets * [1./num_assets]
+        
+        # Optimization
+        opt_results = minimize(negative_sharpe, initial_weights, args=args,
+                             method='SLSQP', bounds=bounds, constraints=constraints)
+        
+        # Optimal weights
+        optimal_weights = opt_results.x
+        weights_df = pd.DataFrame({
+            'Weight': optimal_weights,
+            'Ticker': expected_returns.index
+        }).set_index('Ticker')
+        
+        # Calculate portfolio metrics
+        port_return = np.dot(optimal_weights, expected_returns)
+        port_vol = np.sqrt(np.dot(optimal_weights.T, np.dot(cov_matrix, optimal_weights)))
+        sharpe_ratio = (port_return - risk_free_rate) / port_vol
+        
+        metrics_dict = {
+            'Expected Return': port_return,
+            'Volatility': port_vol,
+            'Sharpe Ratio': sharpe_ratio
+        }
+        
+        # Generate efficient frontier data
+        def get_portfolio_stats(weights):
+            ret = np.dot(weights, expected_returns)
+            vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+            return ret, vol
+        
+        # Generate random portfolios for visualization
+        num_portfolios = 10000
+        results = np.zeros((3, num_portfolios))
+        
+        for i in range(num_portfolios):
+            weights = np.random.random(num_assets)
+            weights /= np.sum(weights)
+            ret, vol = get_portfolio_stats(weights)
+            results[0,i] = vol
+            results[1,i] = ret
+            results[2,i] = (ret - risk_free_rate) / vol
+        
+        # Find efficient frontier
+        frontier_volatility = []
+        frontier_returns = []
+        
+        target_returns = np.linspace(expected_returns.min(), expected_returns.max(), 50)
+        
+        for target in target_returns:
+            constraints = (
+                {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},
+                {'type': 'eq', 'fun': lambda x: np.dot(x, expected_returns) - target}
+            )
+            result = minimize(lambda x: np.sqrt(np.dot(x.T, np.dot(cov_matrix, x))),
+                            initial_weights,
+                            method='SLSQP',
+                            bounds=bounds,
+                            constraints=constraints)
+            if result.success:
+                frontier_volatility.append(result['fun'])
+                frontier_returns.append(target)
+        
+        # Prepare plot data
+        plot_data_dict = {
+            'random_volatility': results[0,:],
+            'random_returns': results[1,:],
+            'random_sharpe': results[2,:],
+            'frontier_volatility': frontier_volatility,
+            'frontier_returns': frontier_returns,
+            'asset_volatility': np.sqrt(np.diag(cov_matrix)),
+            'asset_returns': expected_returns.values
+        }
+        
+        return weights_df, metrics_dict, plot_data_dict
+    
+    except Exception as e:
+        st.error(f"Mean-variance optimization failed: {str(e)}")
+        return None, None, None
+
+def plot_efficient_frontier(plot_data, weights_df, metrics):
+    """Plot the efficient frontier with optimal portfolio marked."""
+    try:
+        # Create figure
+        fig = go.Figure()
+        
+        # Add random portfolios if available
+        if 'random_volatility' in plot_data and 'random_returns' in plot_data:
+            fig.add_trace(go.Scatter(
+                x=plot_data['random_volatility'],
+                y=plot_data['random_returns'],
+                mode='markers',
+                name='Random Portfolios',
+                marker=dict(
+                    color=plot_data.get('random_sharpe', None),
+                    colorscale='Viridis',
+                    size=5,
+                    opacity=0.5,
+                    colorbar=dict(title='Sharpe Ratio'),
+                    showscale=True
+                ),
+                hovertemplate='Volatility: %{x:.2%}<br>Return: %{y:.2%}'
+            ))
+        
+        # Add efficient frontier
+        if 'frontier_volatility' in plot_data and 'frontier_returns' in plot_data:
+            fig.add_trace(go.Scatter(
+                x=plot_data['frontier_volatility'],
+                y=plot_data['frontier_returns'],
+                mode='lines',
+                name='Efficient Frontier',
+                line=dict(color='royalblue', width=3),
+                hovertemplate='Volatility: %{x:.2%}<br>Return: %{y:.2%}'
+            ))
+        
+        # Add individual assets
+        if 'asset_volatility' in plot_data and 'asset_returns' in plot_data:
+            fig.add_trace(go.Scatter(
+                x=plot_data['asset_volatility'],
+                y=plot_data['asset_returns'],
+                mode='markers+text',
+                name='Assets',
+                marker=dict(
+                    size=12,
+                    color='lightgrey',
+                    line=dict(width=1, color='darkgrey'))
+                ),
+                text=weights_df.index.tolist(),
+                textposition="top center",
+                hovertemplate='<b>%{text}</b><br>Volatility: %{x:.2%}<br>Return: %{y:.2%}'
+            ))
+        
+        # Add optimal portfolio
+        if metrics is not None and 'Expected Return' in metrics.index and 'Volatility' in metrics.index:
+            fig.add_trace(go.Scatter(
+                x=[metrics.loc['Volatility', 'Value']],
+                y=[metrics.loc['Expected Return', 'Value']],
+                mode='markers',
+                name='Optimal Portfolio',
+                marker=dict(
+                    size=16,
+                    color='red',
+                    symbol='star'
+                ),
+                hovertemplate='<b>Optimal Portfolio</b><br>Volatility: %{x:.2%}<br>Return: %{y:.2%}'
+            ))
+            
+            # Add capital market line if Sharpe ratio exists
+            if 'Sharpe Ratio' in metrics.index:
+                risk_free = metrics.loc['Expected Return', 'Value'] - metrics.loc['Sharpe Ratio', 'Value'] * metrics.loc['Volatility', 'Value']
+                max_vol = max(plot_data['frontier_volatility']) if 'frontier_volatility' in plot_data else 0.5
+                
+                fig.add_trace(go.Scatter(
+                    x=[0, max_vol],
+                    y=[risk_free, risk_free + metrics.loc['Sharpe Ratio', 'Value'] * max_vol],
+                    mode='lines',
+                    name='Capital Market Line',
+                    line=dict(color='green', width=2, dash='dot'),
+                    hovertemplate='Return: %{y:.2%}'
+                ))
+        
+        fig.update_layout(
+            title='<b>Efficient Frontier</b>',
+            xaxis_title='Volatility (Standard Deviation)',
+            yaxis_title='Expected Return',
+            hovermode='closest',
+            showlegend=True,
+            template='plotly_white',
+            height=600,
+            margin=dict(l=50, r=50, b=50, t=80)
+        )
+        
+        return fig
+    
+    except Exception as e:
+        st.error(f"Error plotting efficient frontier: {str(e)}")
+        return go.Figure()
+
+# Add other required supporting functions here (get_company_financials, black_scholes_greeks, etc.)
 
 if __name__ == "__main__":
     main()
