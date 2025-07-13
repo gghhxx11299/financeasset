@@ -818,8 +818,6 @@ def get_valid_tickers(tickers, start_date, end_date):
     
     return valid_tickers, invalid_tickers, prices_dict
 
-
-
 def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple"):
     """
     Perform mean-variance optimization and calculate efficient frontier.
@@ -952,123 +950,6 @@ def plot_efficient_frontier(plot_data, weights_df, metrics):
     Plot the efficient frontier with optimal portfolio marked.
     
     Args:
-        plot_data (dict): Dictionary containing:
-            - frontier_volatility: List of frontier volatility values
-            - frontier_returns: List of frontier return values
-            - asset_volatility: Array of individual asset volatilities
-            - asset_returns: Array of individual asset returns
-            - random_volatility: Array of random portfolio volatilities (optional)
-            - random_returns: Array of random portfolio returns (optional)
-        weights_df (DataFrame): Optimal weights
-        metrics (dict): Portfolio metrics including:
-            - Expected Return
-            - Volatility
-            - Sharpe Ratio
-    
-    Returns:
-        plotly.graph_objs.Figure: The efficient frontier plot
-    """
-    try:
-        # Create figure
-        fig = go.Figure()
-        
-        # Add random portfolios if available
-        if 'random_volatility' in plot_data and 'random_returns' in plot_data:
-            fig.add_trace(go.Scatter(
-                x=plot_data['random_volatility'],
-                y=plot_data['random_returns'],
-                mode='markers',
-                name='Random Portfolios',
-                marker=dict(
-                    color=plot_data.get('random_sharpe', None),
-                    colorscale='Viridis',
-                    size=5,
-                    opacity=0.5,
-                    colorbar=dict(title='Sharpe Ratio'),
-                    showscale=True
-                ),
-                hovertemplate='Volatility: %{x:.2%}<br>Return: %{y:.2%}'
-            ))
-        
-        # Add efficient frontier
-        if 'frontier_volatility' in plot_data and 'frontier_returns' in plot_data:
-            fig.add_trace(go.Scatter(
-                x=plot_data['frontier_volatility'],
-                y=plot_data['frontier_returns'],
-                mode='lines',
-                name='Efficient Frontier',
-                line=dict(color='royalblue', width=3),
-                hovertemplate='Volatility: %{x:.2%}<br>Return: %{y:.2%}'
-            ))
-        
-        # Add individual assets
-        if 'asset_volatility' in plot_data and 'asset_returns' in plot_data:
-            fig.add_trace(go.Scatter(
-                x=plot_data['asset_volatility'],
-                y=plot_data['asset_returns'],
-                mode='markers+text',
-                name='Assets',
-                marker=dict(
-                    size=12,
-                    color='lightgrey',
-                    line=dict(width=1, color='darkgrey')
-                ),
-                text=weights_df.index.tolist(),
-                textposition="top center",
-                hovertemplate='<b>%{text}</b><br>Volatility: %{x:.2%}<br>Return: %{y:.2%}'
-            ))
-        
-        # Add optimal portfolio
-        if metrics and 'Expected Return' in metrics and 'Volatility' in metrics:
-            fig.add_trace(go.Scatter(
-                x=[metrics['Volatility']],
-                y=[metrics['Expected Return']],
-                mode='markers',
-                name='Optimal Portfolio',
-                marker=dict(
-                    size=16,
-                    color='red',
-                    symbol='star'
-                ),
-                hovertemplate='<b>Optimal Portfolio</b><br>Volatility: %{x:.2%}<br>Return: %{y:.2%}'
-            ))
-            
-            # Add capital market line if Sharpe ratio exists
-            if 'Sharpe Ratio' in metrics:
-                risk_free = metrics['Expected Return'] - metrics['Sharpe Ratio'] * metrics['Volatility']
-                max_vol = max(plot_data['frontier_volatility']) if 'frontier_volatility' in plot_data else 0.5
-                
-                fig.add_trace(go.Scatter(
-                    x=[0, max_vol],
-                    y=[risk_free, risk_free + metrics['Sharpe Ratio'] * max_vol],
-                    mode='lines',
-                    name='Capital Market Line',
-                    line=dict(color='green', width=2, dash='dot'),
-                    hovertemplate='Return: %{y:.2%}'
-                ))
-        
-        fig.update_layout(
-            title='<b>Efficient Frontier</b>',
-            xaxis_title='Volatility (Standard Deviation)',
-            yaxis_title='Expected Return',
-            hovermode='closest',
-            showlegend=True,
-            template='plotly_white',
-            height=600,
-            margin=dict(l=50, r=50, b=50, t=80)
-        )
-        
-        return fig
-    
-    except Exception as e:
-        st.error(f"Error plotting efficient frontier: {str(e)}")
-        return go.Figure()
-
-def plot_efficient_frontier(plot_data, weights_df, metrics):
-    """
-    Plot the efficient frontier with optimal portfolio marked.
-    
-    Args:
         plot_data (dict): Dictionary containing frontier data
         weights_df (DataFrame): Optimal weights
         metrics (DataFrame or dict): Portfolio metrics
@@ -1164,33 +1045,71 @@ def plot_efficient_frontier(plot_data, weights_df, metrics):
     except Exception as e:
         st.error(f"Error plotting efficient frontier: {str(e)}")
         return go.Figure()
+
 def hierarchical_risk_parity(prices, return_type):
-    df = pd.DataFrame(prices)
-    if return_type == "Log":
-        returns = np.log(df / df.shift(1)).dropna()
-    else:
-        returns = df.pct_change().dropna()
-    cov = returns.cov()
-    corr = returns.corr()
-    dist = np.sqrt((1 - corr).clip(0))
-    link = linkage(ssd.squareform(dist), method="single")
-    var = returns.var()
-    sorted_idx = dendrogram(link, labels=df.columns, no_plot=True)['leaves']
-    sorted_tickers = [df.columns[i] for i in sorted_idx]
-    risks = var.loc[sorted_tickers]
-    total_risk = risks.sum()
-    weights = risks.apply(lambda x: 1.0 / x)
-    weights = weights / weights.sum()
-    weights_df = pd.DataFrame(weights, columns=["Risk-Parity Weight"])
-    exp_return = (returns.mean() * weights).sum() * 252
-    vol = np.sqrt(np.dot(weights.values.T, np.dot(cov * 252, weights.values)))
-    sharpe = exp_return / vol if vol > 0 else 0
-    metrics = {
-        "Expected Return": exp_return,
-        "Volatility": vol,
-        "Sharpe Ratio": sharpe,
-    }
-    return weights_df, metrics, link, dist
+    """
+    Perform hierarchical risk parity portfolio optimization.
+    
+    Args:
+        prices (dict): Dictionary of price Series for each asset
+        return_type (str): "Simple" or "Log" returns
+        
+    Returns:
+        tuple: (weights_df, metrics, link, dist)
+            - weights_df: DataFrame of optimal weights
+            - metrics: Dictionary of portfolio metrics
+            - link: Linkage matrix for dendrogram
+            - dist: Distance matrix
+    """
+    try:
+        df = pd.DataFrame(prices)
+        
+        # Calculate returns
+        if return_type == "Log":
+            returns = np.log(df / df.shift(1)).dropna()
+        else:
+            returns = df.pct_change().dropna()
+        
+        # Calculate covariance and correlation
+        cov = returns.cov()
+        corr = returns.corr()
+        
+        # Calculate distance matrix
+        dist = np.sqrt((1 - corr).clip(0))
+        
+        # Perform hierarchical clustering
+        link = linkage(ssd.squareform(dist), method="single")
+        
+        # Calculate variance and sort assets
+        var = returns.var()
+        sorted_idx = dendrogram(link, labels=df.columns, no_plot=True)['leaves']
+        sorted_tickers = [df.columns[i] for i in sorted_idx]
+        
+        # Calculate risk-parity weights
+        risks = var.loc[sorted_tickers]
+        total_risk = risks.sum()
+        weights = risks.apply(lambda x: 1.0 / x)
+        weights = weights / weights.sum()
+        
+        # Prepare weights DataFrame
+        weights_df = pd.DataFrame(weights, columns=["Risk-Parity Weight"])
+        
+        # Calculate portfolio metrics
+        exp_return = (returns.mean() * weights).sum() * 252
+        vol = np.sqrt(np.dot(weights.values.T, np.dot(cov * 252, weights.values)))
+        sharpe = exp_return / vol if vol > 0 else 0
+        
+        metrics = {
+            "Expected Return": exp_return,
+            "Volatility": vol,
+            "Sharpe Ratio": sharpe,
+        }
+        
+        return weights_df, metrics, link, dist
+    
+    except Exception as e:
+        st.error(f"Hierarchical Risk Parity optimization failed: {str(e)}")
+        return None, None, None, None
 
 def plot_dendrogram(link, labels):
     fig = go.Figure()
