@@ -776,9 +776,21 @@ def get_company_financials(ticker):
         st.error(f"Error fetching financial data: {e}")
         return False, None
 
-def get_valid_tickers(tickers, start_date, end_date):
+def get_valid_tickers(tickers, start_date, end_date, min_data_points=10):
     """
-    Fetch price data for multiple tickers and identify which are valid.
+    Fetch historical price data for multiple tickers and validate them.
+    
+    Args:
+        tickers (list): List of ticker symbols (e.g., ['AAPL', 'MSFT'])
+        start_date (datetime): Start date for historical data
+        end_date (datetime): End date for historical data
+        min_data_points (int): Minimum required data points (default 10)
+        
+    Returns:
+        tuple: (valid_tickers, invalid_tickers, prices_dict)
+            - valid_tickers: List of tickers with valid data
+            - invalid_tickers: List of tickers without valid data
+            - prices_dict: Dictionary of price Series for valid tickers
     """
     valid_tickers = []
     invalid_tickers = []
@@ -787,27 +799,46 @@ def get_valid_tickers(tickers, start_date, end_date):
     for ticker in tickers:
         try:
             # Download historical data
-            data = yf.download(ticker, start=start_date, end=end_date)
+            data = yf.download(ticker, start=start_date, end=end_date, progress=False)
             
-            if data.empty or len(data) < 10:  # Require at least 10 data points
+            # Validate data
+            if data.empty or len(data) < min_data_points:
                 invalid_tickers.append(ticker)
                 continue
                 
-            # Store closing prices
-            prices_dict[ticker] = data['Close']
+            # Store as properly formatted Series
+            prices_dict[ticker] = data['Close'].rename(ticker)
             valid_tickers.append(ticker)
             
         except Exception as e:
-            print(f"Failed to download data for {ticker}: {str(e)}")
             invalid_tickers.append(ticker)
+            st.warning(f"Failed to download data for {ticker}: {str(e)}")
+    
+    if invalid_tickers:
+        st.warning(f"Invalid tickers ignored: {', '.join(invalid_tickers)}")
     
     return valid_tickers, invalid_tickers, prices_dict
 
 def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple"):
     """
-    Perform mean-variance optimization and calculate efficient frontier.
-    Returns tuple: (weights_df, metrics_df, plot_data_dict)
+    Perform mean-variance portfolio optimization (Modern Portfolio Theory).
+    
+    Args:
+        prices (dict): Dictionary of price Series (from get_valid_tickers)
+        risk_free_rate (float): Annual risk-free rate (default 0.025)
+        return_type (str): "Simple" or "Log" returns (default "Simple")
+        
+    Returns:
+        tuple: (weights_df, metrics_df, plot_data_dict)
+            - weights_df: DataFrame of optimal weights
+            - metrics_df: DataFrame of portfolio metrics
+            - plot_data_dict: Dictionary with frontier plotting data
     """
+    # Input validation
+    if not isinstance(prices, dict) or len(prices) == 0:
+        st.error("Prices must be a non-empty dictionary")
+        return None, None, None
+    
     try:
         # Convert prices to DataFrame
         prices_df = pd.DataFrame(prices)
@@ -818,26 +849,28 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
         else:  # Log returns
             returns = np.log(prices_df / prices_df.shift(1)).dropna()
         
-        # Annualize expected returns and covariance
+        # Annualize expected returns and covariance matrix
         expected_returns = returns.mean() * 252
         cov_matrix = returns.cov() * 252
         
         # Optimize for max Sharpe ratio
-        def negative_sharpe(weights, expected_returns, cov_matrix, risk_free_rate):
+        def negative_sharpe(weights):
             port_return = np.dot(weights, expected_returns)
             port_vol = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
             return -(port_return - risk_free_rate) / port_vol
         
         # Setup optimization
         num_assets = len(expected_returns)
-        args = (expected_returns, cov_matrix, risk_free_rate)
         constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
         bounds = tuple((0, 1) for _ in range(num_assets))
         initial_weights = np.array(num_assets * [1./num_assets])
         
         # Run optimization
-        opt_results = minimize(negative_sharpe, initial_weights, args=args,
-                             method='SLSQP', bounds=bounds, constraints=constraints)
+        opt_results = minimize(negative_sharpe, 
+                             initial_weights,
+                             method='SLSQP',
+                             bounds=bounds,
+                             constraints=constraints)
         
         if not opt_results.success:
             raise ValueError("Optimization failed to converge")
@@ -846,14 +879,14 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
         weights_df = pd.DataFrame({
             'Ticker': expected_returns.index,
             'Weight': opt_results.x
-        }).set_index('Ticker')
+        }).set_index('Ticker').sort_values('Weight', ascending=False)
         
-        # Calculate metrics
+        # Calculate portfolio metrics
         port_return = np.dot(opt_results.x, expected_returns)
         port_vol = np.sqrt(np.dot(opt_results.x.T, np.dot(cov_matrix, opt_results.x)))
         sharpe_ratio = (port_return - risk_free_rate) / port_vol
         
-        # Create metrics DataFrame with explicit index
+        # Create metrics DataFrame
         metrics_df = pd.DataFrame({
             'Value': [port_return, port_vol, sharpe_ratio]
         }, index=['Expected Return', 'Volatility', 'Sharpe Ratio'])
@@ -875,17 +908,19 @@ def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple
                 frontier_vol.append(res['fun'])
                 frontier_ret.append(target)
         
-        return weights_df, metrics_df, {
+        plot_data = {
             'frontier_volatility': frontier_vol,
             'frontier_returns': frontier_ret,
             'asset_volatility': np.sqrt(np.diag(cov_matrix)),
-            'asset_returns': expected_returns.values
+            'asset_returns': expected_returns.values,
+            'optimal_weights': opt_results.x
         }
+        
+        return weights_df, metrics_df, plot_data
         
     except Exception as e:
         st.error(f"Mean-variance optimization failed: {str(e)}")
         return None, None, None
-
 
 def plot_efficient_frontier(plot_data, weights_df, metrics):
     """
@@ -989,32 +1024,47 @@ def plot_efficient_frontier(plot_data, weights_df, metrics):
 
 def hierarchical_risk_parity(prices, return_type="Simple"):
     """
-    Perform hierarchical risk parity portfolio optimization.
-    Returns tuple: (weights_df, metrics_df, link, dist)
+    Perform Hierarchical Risk Parity portfolio optimization.
+    
+    Args:
+        prices (dict): Dictionary of price Series (from get_valid_tickers)
+        return_type (str): "Simple" or "Log" returns (default "Simple")
+        
+    Returns:
+        tuple: (weights_df, metrics_df, link, dist)
+            - weights_df: DataFrame of optimal weights
+            - metrics_df: DataFrame of portfolio metrics
+            - link: Linkage matrix for dendrogram
+            - dist: Distance matrix
     """
+    # Input validation
+    if not isinstance(prices, dict) or len(prices) == 0:
+        st.error("Prices must be a non-empty dictionary")
+        return None, None, None, None
+    
     try:
         # Create DataFrame from prices
-        df = pd.DataFrame(prices)
+        prices_df = pd.DataFrame(prices)
         
         # Calculate returns
         if return_type == "Log":
-            returns = np.log(df / df.shift(1)).dropna()
+            returns = np.log(prices_df / prices_df.shift(1)).dropna()
         else:
-            returns = df.pct_change().dropna()
+            returns = prices_df.pct_change().dropna()
         
         # Calculate covariance and correlation
         cov = returns.cov()
         corr = returns.corr()
         
-        # Distance matrix
+        # Distance matrix (convert correlation to distance)
         dist = np.sqrt((1 - corr).clip(0))
         
         # Hierarchical clustering
         link = linkage(ssd.squareform(dist), method="single")
         
         # Sort assets by hierarchical clustering
-        sorted_idx = dendrogram(link, labels=df.columns, no_plot=True)['leaves']
-        sorted_tickers = [df.columns[i] for i in sorted_idx]
+        dn = dendrogram(link, labels=prices_df.columns, no_plot=True)
+        sorted_tickers = [prices_df.columns[i] for i in dn['leaves']]
         
         # Calculate risk-parity weights
         var = returns.var()
@@ -1022,14 +1072,14 @@ def hierarchical_risk_parity(prices, return_type="Simple"):
         weights = (1 / risks) / (1 / risks).sum()
         
         # Create weights DataFrame
-        weights_df = pd.DataFrame(weights, columns=['Weight'])
+        weights_df = pd.DataFrame(weights, columns=['Weight']).sort_values('Weight', ascending=False)
         
-        # Calculate portfolio metrics
+        # Calculate portfolio metrics (annualized)
         exp_return = (returns.mean() * weights).sum() * 252
         vol = np.sqrt(np.dot(weights.T, np.dot(cov * 252, weights)))
         sharpe = exp_return / vol if vol > 0 else 0
         
-        # Create metrics DataFrame with explicit index
+        # Create metrics DataFrame
         metrics_df = pd.DataFrame({
             'Value': [exp_return, vol, sharpe]
         }, index=['Expected Return', 'Volatility', 'Sharpe Ratio'])
@@ -1039,6 +1089,26 @@ def hierarchical_risk_parity(prices, return_type="Simple"):
     except Exception as e:
         st.error(f"Hierarchical Risk Parity optimization failed: {str(e)}")
         return None, None, None, None
+def validate_price_data(prices):
+    """Validate that prices is a dict of pandas Series with proper index"""
+    if not isinstance(prices, dict):
+        st.error("Prices must be a dictionary")
+        return False
+    
+    if len(prices) == 0:
+        st.error("Prices dictionary is empty")
+        return False
+    
+    for ticker, series in prices.items():
+        if not isinstance(series, pd.Series):
+            st.error(f"Price data for {ticker} is not a pandas Series")
+            return False
+        
+        if len(series) < 2:
+            st.error(f"Not enough data points for {ticker}")
+            return False
+            
+    return True
 def plot_dendrogram(link, labels):
     fig = go.Figure()
     dn = dendrogram(link, labels=labels, orientation='top', no_plot=True)
