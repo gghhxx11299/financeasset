@@ -932,24 +932,26 @@ def plot_efficient_frontier(plot_data, weights_df, metrics):
     except Exception as e:
         st.error(f"Error plotting efficient frontier: {str(e)}")
         return go.Figure()
-def hierarchical_risk_parity(prices, return_type="Simple"):
-    """HRP optimization implementation"""
+def hierarchical_risk_parity(prices, risk_free_rate=0.025, return_type="Simple"):
+    """Hierarchical Risk Parity portfolio optimization implementation"""
     # Input validation
     if not isinstance(prices, dict) or len(prices) == 0:
         st.error("No valid price data available")
-        return None, None, None, None
+        return None
     
     try:
+        # Convert prices to DataFrame
         prices_df = pd.DataFrame(prices)
         
-        # Calculate returns
+        # Calculate returns based on specified return type
         if return_type == "Log":
             returns = np.log(prices_df / prices_df.shift(1)).dropna()
-        else:
+        else:  # Simple returns
             returns = prices_df.pct_change().dropna()
         
         # Calculate covariance matrix
         cov = returns.cov()
+        assets = returns.columns.tolist()
         
         # 1. Hierarchical clustering
         corr = returns.corr()
@@ -959,13 +961,15 @@ def hierarchical_risk_parity(prices, return_type="Simple"):
         
         # 2. Quasi-diagonalization
         def get_quasi_diagonal(link):
-            # Sort clustered items by distance
+            """Sort clustered items by distance"""
             link = link.astype(int)
-            sort_idx = pd.Series([link[-1, 0], [link[-1, 1]])
+            sort_idx = pd.Series([link[-1, 0], link[-1, 1]])
             num_items = link[-1, 3]  # number of original items
+            
             while sort_idx.max() >= num_items:
-                sort_idx.index = sort_idx.index.map(lambda x: link[x - num_items, 0] 
-                if x < num_items else link[x - num_items, 1])
+                sort_idx.index = sort_idx.index.map(
+                    lambda x: link[x - num_items, 0] if x < num_items else link[x - num_items, 1]
+                )
                 sort_idx = sort_idx.sort_index()
             return sort_idx.tolist()
         
@@ -974,37 +978,37 @@ def hierarchical_risk_parity(prices, return_type="Simple"):
         
         # 3. Recursive bisection
         def get_cluster_var(cov, cluster_items):
-            # Compute variance per cluster
+            """Compute variance per cluster"""
             cov_ = cov.loc[cluster_items, cluster_items]
             w_ = 1 / np.diag(cov_)  # inverse variance weights
             w_ /= w_.sum()
             return np.dot(w_, np.dot(cov_, w_))
         
         def get_hrp_weights(cov, sort_idx):
-            # Recursive bisection
+            """Recursive bisection for weight allocation"""
             weights = pd.Series(1, index=sort_idx)
             clusters = [sort_idx]  # initial cluster contains all assets
             
             while len(clusters) > 0:
-                # bisect the cluster
+                # Bisect the cluster
                 cluster = clusters.pop(0)
                 if len(cluster) == 1:
                     continue
                 
-                # split cluster into left and right
+                # Split cluster into left and right
                 left = cluster[:len(cluster)//2]
                 right = cluster[len(cluster)//2:]
                 
-                # compute allocation factors
+                # Compute allocation factors
                 left_var = get_cluster_var(cov, left)
                 right_var = get_cluster_var(cov, right)
                 alloc_factor = 1 - left_var / (left_var + right_var)
                 
-                # assign weights
+                # Assign weights
                 weights[left] *= alloc_factor
                 weights[right] *= 1 - alloc_factor
                 
-                # add new clusters
+                # Add new clusters
                 if len(left) > 1:
                     clusters.append(left)
                 if len(right) > 1:
@@ -1012,8 +1016,9 @@ def hierarchical_risk_parity(prices, return_type="Simple"):
             
             return weights
         
+        # Calculate HRP weights
         weights = get_hrp_weights(cov, sort_idx)
-        weights_df = pd.DataFrame(weights, columns=['Weight'])
+        weights_df = pd.DataFrame(weights, columns=['Weight'], index=assets)
         
         # Calculate portfolio metrics
         portfolio_return = np.dot(weights, returns.mean()) * 252
@@ -1031,7 +1036,9 @@ def hierarchical_risk_parity(prices, return_type="Simple"):
     
     except Exception as e:
         st.error(f"HRP optimization failed: {str(e)}")
-        return None, None, None, None
+        st.error(traceback.format_exc())
+        return None
+        
 def validate_price_data(prices):
     """Validate that prices is a dict of pandas Series with proper index"""
     if not isinstance(prices, dict):
@@ -1593,10 +1600,14 @@ def main():
                             
                             elif optimization_method == "Hierarchical Risk Parity":
                                 result = hierarchical_risk_parity(
-                                    prices, return_type
+                                    prices, risk_free_rate, return_type
                                 )
                                 
-                                if result is not None and len(result) == 4:
+                                if result is None:
+                                    st.error("HRP optimization failed - no results returned")
+                                elif len(result) != 4:
+                                    st.error(f"HRP optimization returned unexpected number of results: {len(result)}")
+                                else:
                                     weights_df, metrics_df, link, dist = result
                                     st.session_state.portfolio_results = {
                                         "weights": weights_df,
@@ -1607,8 +1618,6 @@ def main():
                                         "method": "HRP"
                                     }
                                     st.session_state.portfolio_analysis_done = True
-                                else:
-                                    st.error("HRP optimization failed to return valid results")
                     
                     except Exception as e:
                         st.error(f"Portfolio optimization failed: {str(e)}")
@@ -1632,6 +1641,7 @@ def main():
                     results["metrics"]
                 )
                 st.plotly_chart(fig, use_container_width=True)
+            
             elif results["method"] == "HRP":
                 st.markdown("### Hierarchical Clustering")
                 fig = plot_dendrogram(
