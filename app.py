@@ -1142,6 +1142,13 @@ def main():
         with st.expander("View detailed trading recommendations"):
             if st.session_state.trading_advice is not None:
                 st.dataframe(st.session_state.trading_advice, use_container_width=True)
+                # Disclaimer for Options Analysis tab
+        st.markdown("""
+        <div style="margin-top: 2rem; padding: 1rem; background-color: rgba(255,0,0,0.1); border-left: 4px solid #ff0000;">
+        <strong style="color: #ff0000;">DISCLAIMER:</strong> This is for educational purposes only. Not professional financial advice. 
+        Past performance is not indicative of future results. Investing involves risk, including possible loss of principal.
+        </div>
+        """, unsafe_allow_html=True)
         
         # Plots
         if st.session_state.plot_fig is not None:
@@ -1152,6 +1159,7 @@ def main():
         
         # Export buttons
         st.markdown("---")
+        
         col1, col2 = st.columns(2)
         
         with col1:
