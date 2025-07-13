@@ -971,23 +971,23 @@ def main():
 
     with tab1:
         st.markdown("### Input Parameters")
-        with st.expander("Configure your option trade"):
+        with st.expander("Configure your option trade", key="option_config_expander"):
             col1, col2 = st.columns(2)
             
             with col1:
-                ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL").upper()
-                option_type = st.selectbox("Option Type", ["call", "put"])
-                strike_price = st.number_input("Strike Price", min_value=0.0, value=150.0)
-                days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30)
-                risk_free_rate = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=0.025)
-                sector = st.selectbox("Sector", list(SECTOR_MAP.keys()))
+                ticker = st.text_input("Stock Ticker (e.g. AAPL)", value="AAPL", key="option_ticker").upper()
+                option_type = st.selectbox("Option Type", ["call", "put"], key="option_type_select")
+                strike_price = st.number_input("Strike Price", min_value=0.0, value=150.0, key="strike_price_input")
+                days_to_expiry = st.number_input("Days to Expiry", min_value=1, max_value=365, value=30, key="days_to_expiry_input")
+                risk_free_rate = st.number_input("Risk-Free Rate", min_value=0.0, max_value=1.0, value=0.025, key="risk_free_rate_input")
+                sector = st.selectbox("Sector", list(SECTOR_MAP.keys()), key="sector_select")
                 
             with col2:
-                return_type = st.selectbox("Return Type", ["Simple", "Log"])
-                comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0)
-                max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0)
-                min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0)
-                pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"])
+                return_type_options = st.selectbox("Return Type", ["Simple", "Log"], key="return_type_options")
+                comfortable_capital = st.number_input("Comfortable Capital ($)", min_value=0.0, value=1000.0, key="comfortable_capital_input")
+                max_capital = st.number_input("Max Capital ($)", min_value=0.0, value=5000.0, key="max_capital_input")
+                min_capital = st.number_input("Min Capital ($)", min_value=0.0, value=500.0, key="min_capital_input")
+                pricing_model = st.selectbox("Pricing Model", ["Black-Scholes", "Binomial Tree", "Monte Carlo"], key="pricing_model_select")
 
         # Check if ticker is a stock and get financials
         if ticker:
@@ -998,12 +998,12 @@ def main():
             if not is_stock:
                 st.warning(f"⚠️ {ticker} does not appear to be a stock. This tool works best with individual stocks.")
             elif financials_df is not None:
-                with st.expander("View Company Financials", expanded=True):
+                with st.expander("View Company Financials", expanded=True, key="financials_expander"):
                     st.dataframe(financials_df, use_container_width=True)
 
         # Calculation button
         st.markdown("---")
-        calculate_clicked = st.button("Calculate Profit & Advice", key="calculate")
+        calculate_clicked = st.button("Calculate Profit & Advice", key="calculate_button")
 
         # When Calculate button is pressed
         if calculate_clicked:
@@ -1017,7 +1017,7 @@ def main():
                         "Days to Expiry": days_to_expiry,
                         "Risk-Free Rate": risk_free_rate,
                         "Sector": sector,
-                        "Return Type": return_type,
+                        "Return Type": return_type_options,
                         "Comfortable Capital": comfortable_capital,
                         "Max Capital": max_capital,
                         "Min Capital": min_capital,
@@ -1111,7 +1111,7 @@ def main():
                     try:
                         df = yf.download(symbols, period="1mo", interval="1d")["Close"].dropna(axis=1, how="any")
                         
-                        if return_type == "Log":
+                        if return_type_options == "Log":
                             returns = (df / df.shift(1)).apply(np.log).dropna()
                         else:
                             returns = df.pct_change().dropna()
@@ -1300,7 +1300,7 @@ def main():
             
             # Trading Advice
             st.markdown("### Trading Advice")
-            with st.expander("View detailed trading recommendations"):
+            with st.expander("View detailed trading recommendations", key="trading_advice_expander"):
                 if st.session_state.trading_advice is not None:
                     st.dataframe(st.session_state.trading_advice, use_container_width=True)
             
@@ -1321,7 +1321,8 @@ def main():
                         label="Download CSV Report",
                         data=st.session_state.export_csv,
                         file_name="options_analysis_report.csv",
-                        mime="text/csv"
+                        mime="text/csv",
+                        key="csv_download_button"
                     )
             
             with col2:
@@ -1330,26 +1331,28 @@ def main():
                         label="Download PDF Report",
                         data=st.session_state.export_pdf,
                         file_name="options_analysis_report.pdf",
-                        mime="application/pdf"
+                        mime="application/pdf",
+                        key="pdf_download_button"
                     )
 
     with tab2:
         st.markdown("## Portfolio Management")
         
-        with st.expander("Configure Portfolio"):
+        with st.expander("Configure Portfolio", key="portfolio_config_expander"):
             col1, col2 = st.columns(2)
             
             with col1:
-                tickers_input = st.text_input("Enter tickers (comma separated)", "AAPL,MSFT,GOOGL")
-                start_date = st.date_input("Start date", datetime.now() - timedelta(days=365))
-                end_date = st.date_input("End date", datetime.now())
-                risk_free_rate = st.number_input("Risk-free rate", 0.0, 1.0, 0.025)
+                tickers_input = st.text_input("Enter tickers (comma separated)", "AAPL,MSFT,GOOGL", key="portfolio_tickers")
+                start_date = st.date_input("Start date", datetime.now() - timedelta(days=365), key="portfolio_start_date")
+                end_date = st.date_input("End date", datetime.now(), key="portfolio_end_date")
+                risk_free_rate = st.number_input("Risk-free rate", 0.0, 1.0, 0.025, key="portfolio_risk_free_rate")
                 
             with col2:
                 optimization_method = st.selectbox("Optimization Method", 
-                                                 ["Mean-Variance", "Hierarchical Risk Parity"])
-                return_type = st.selectbox("Return Type", ["Simple", "Log"])
-                calculate_portfolio = st.button("Optimize Portfolio")
+                                                 ["Mean-Variance", "Hierarchical Risk Parity"], 
+                                                 key="optimization_method")
+                return_type_portfolio = st.selectbox("Return Type", ["Simple", "Log"], key="portfolio_return_type")
+                calculate_portfolio = st.button("Optimize Portfolio", key="optimize_portfolio_button")
         
         if calculate_portfolio:
             with st.spinner("Optimizing portfolio..."):
@@ -1371,7 +1374,7 @@ def main():
                     # Perform optimization based on selected method
                     if optimization_method == "Mean-Variance":
                         weights_df, metrics, ef_data = mean_variance_optimization(
-                            prices, risk_free_rate, return_type
+                            prices, risk_free_rate, return_type_portfolio
                         )
                         
                         # Display results
@@ -1387,7 +1390,7 @@ def main():
                         
                     elif optimization_method == "Hierarchical Risk Parity":
                         weights_df, metrics, link, dist = hierarchical_risk_parity(
-                            prices, return_type
+                            prices, return_type_portfolio
                         )
                         
                         # Display results
@@ -1407,6 +1410,30 @@ def main():
                 except Exception as e:
                     st.error(f"Portfolio optimization failed: {str(e)}")
                     st.error(traceback.format_exc())
+
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div class="footer">
+        <div style="margin-bottom: 1rem;">
+            <span style="color: var(--neon-blue); font-size: 1.2rem;" class="flicker">MADE WITH ❤️ BY</span>
+            <span style="color: var(--neon-green); font-weight: bold; font-size: 1.3rem; text-shadow: 0 0 10px var(--neon-green);">GEABRAL MULUGETA</span>
+        </div>
+        <div style="margin-top: 1rem;">
+            <a href="https://github.com/gghhxx11299" target="_blank">GITHUB</a>
+            <span style="color: var(--neon-blue);"> | </span>
+            <a href="https://www.linkedin.com/in/geabral-mulugeta-334358327/" target="_blank">LINKEDIN</a>
+            <span style="color: var(--neon-blue);"> | </span>
+            <a href="#" onclick="alert('COMING SOON: PERSONAL WEBSITE')">PORTFOLIO</a>
+        </div>
+        <div class="cyberpunk-divider"></div>
+        <div style="font-size: 0.8rem; color: var(--neon-blue);">
+            <span class="cyberpunk-badge">ALPHA 2.0</span>
+            <span class="cyberpunk-badge">NEURAL NET</span>
+            <span class="cyberpunk-badge">OPTIMIZED</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
