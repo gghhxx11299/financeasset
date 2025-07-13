@@ -810,29 +810,41 @@ def safe_yfinance_download(ticker, start_date, end_date):
         st.warning(f"Error downloading {ticker}: {str(e)}")
         return None
 
-def mean_variance_optimization(prices, risk_free_rate=0.025, return_type="Simple"):
-    """Mean-variance optimization implementation"""
-    # Input validation
-    if not isinstance(prices, dict) or len(prices) == 0:
-        st.error("No valid price data available")
-        return None, None, None
-    
+def mean_variance_optimization(prices, risk_free_rate, return_type):
     try:
-        prices_df = pd.DataFrame(prices)
-        
         # Calculate returns
-        if return_type == "Simple":
-            returns = prices_df.pct_change().dropna()
+        if return_type == "Log":
+            returns = np.log(prices / prices.shift(1)).dropna()
         else:
-            returns = np.log(prices_df / prices_df.shift(1)).dropna()
+            returns = prices.pct_change().dropna()
         
-        # Rest of the implementation...
-        # [Include the full mean_variance_optimization implementation from previous response]
+        # Calculate expected returns and covariance matrix
+        mu = returns.mean()
+        S = returns.cov()
         
+        # Perform optimization
+        ef = EfficientFrontier(mu, S)
+        weights = ef.max_sharpe(risk_free_rate=risk_free_rate)
+        cleaned_weights = ef.clean_weights()
+        
+        # Convert weights to dataframe
+        weights_df = pd.DataFrame.from_dict(cleaned_weights, orient='index', columns=['Weight'])
+        
+        # Get performance metrics
+        performance = ef.portfolio_performance(risk_free_rate=risk_free_rate)
+        metrics_df = pd.DataFrame({
+            'Metric': ['Expected Return', 'Annual Volatility', 'Sharpe Ratio'],
+            'Value': performance
+        })
+        
+        # Generate plot data
+        plot_data = generate_plot_data(ef, mu, S, risk_free_rate)
+        
+        return weights_df, metrics_df, plot_data
+    
     except Exception as e:
-        st.error(f"Optimization failed: {str(e)}")
-        return None, None, None
-
+        print(f"Error in mean_variance_optimization: {e}")
+        return None
 def plot_efficient_frontier(plot_data, weights_df, metrics):
     """
     Plot the efficient frontier with optimal portfolio marked.
@@ -1584,11 +1596,16 @@ def main():
                             st.error("No valid tickers with sufficient data")
                         else:
                             if optimization_method == "Mean-Variance":
-                                weights_df, metrics_df, plot_data = mean_variance_optimization(
+                                result = mean_variance_optimization(
                                     prices, risk_free_rate, return_type
                                 )
                                 
-                                if weights_df is not None and metrics_df is not None:
+                                if result is None:
+                                    st.error("Mean-Variance optimization failed - no results returned")
+                                elif len(result) != 3:
+                                    st.error(f"Mean-Variance optimization returned unexpected number of results: {len(result)}")
+                                else:
+                                    weights_df, metrics_df, plot_data = result
                                     st.session_state.portfolio_results = {
                                         "weights": weights_df,
                                         "metrics": metrics_df,
