@@ -924,31 +924,106 @@ def mean_variance_optimization(price_data, risk_free_rate, return_type):
         st.error(f"Optimization failed: {str(e)}")
         return None, None, None
 
-def plot_efficient_frontier(ef_data, weights_df, metrics):
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=ef_data["Volatility"], y=ef_data["Return"],
-        mode="markers", marker=dict(color=ef_data["Sharpe"], colorscale="Viridis", size=6),
-        text=[f"Sharpe: {s:.2f}" for s in ef_data["Sharpe"]],
-        name="Portfolios"
-    ))
-    fig.add_trace(go.Scatter(
-        x=[metrics["Volatility"]], y=[metrics["Expected Return"]],
-        mode="markers+text", marker=dict(color="red", size=12, symbol="star"),
-        text=["Optimal Portfolio"], textposition="top center",
-        name="Optimal Portfolio"
-    ))
-    fig.update_layout(
-        title="<b>Efficient Frontier (Mean-Variance)</b>",
-        xaxis_title="Volatility",
-        yaxis_title="Expected Return",
-        template="plotly_white",
-        height=500,
-        plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=50, r=50, b=50, t=80),
-    )
-    return fig
-
+def plot_efficient_frontier(plot_data, weights_df, metrics):
+    """
+    Plot the efficient frontier with optimal portfolio marked.
+    
+    Args:
+        plot_data (dict): Dictionary containing frontier data
+        weights_df (DataFrame): Optimal weights
+        metrics (DataFrame or dict): Portfolio metrics
+    
+    Returns:
+        plotly.graph_objs.Figure: The efficient frontier plot
+    """
+    try:
+        # Convert metrics to DataFrame if it's a dictionary
+        if isinstance(metrics, dict):
+            metrics_df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
+        else:
+            metrics_df = metrics.copy()
+        
+        # Ensure required metrics exist
+        if 'Volatility' not in metrics_df.index:
+            raise KeyError("Volatility metric not found")
+        if 'Expected Return' not in metrics_df.index:
+            raise KeyError("Expected Return metric not found")
+            
+        # Extract values safely
+        volatility = metrics_df.loc['Volatility', 'Value']
+        expected_return = metrics_df.loc['Expected Return', 'Value']
+        
+        fig = go.Figure()
+        
+        # Add efficient frontier
+        fig.add_trace(go.Scatter(
+            x=plot_data['frontier_volatility'],
+            y=plot_data['frontier_returns'],
+            mode='lines',
+            name='Efficient Frontier',
+            line=dict(color='royalblue', width=2),
+            hovertemplate='Volatility: %{x:.2%}<br>Return: %{y:.2%}'
+        ))
+        
+        # Add individual assets
+        fig.add_trace(go.Scatter(
+            x=plot_data['asset_volatility'],
+            y=plot_data['asset_returns'],
+            mode='markers',
+            name='Assets',
+            marker=dict(
+                size=10,
+                color='lightgrey',
+                line=dict(width=1, color='darkgrey')
+            ),
+            text=weights_df.index.tolist(),
+            hovertemplate='<b>%{text}</b><br>Volatility: %{x:.2%}<br>Return: %{y:.2%}'
+        ))
+        
+        # Add optimal portfolio
+        fig.add_trace(go.Scatter(
+            x=[volatility],
+            y=[expected_return],
+            mode='markers',
+            name='Optimal Portfolio',
+            marker=dict(
+                size=14,
+                color='red',
+                symbol='star'
+            ),
+            hovertemplate='<b>Optimal Portfolio</b><br>Volatility: %{x:.2%}<br>Return: %{y:.2%}'
+        ))
+        
+        # Add capital market line if Sharpe ratio exists
+        if 'Sharpe Ratio' in metrics_df.index:
+            risk_free = expected_return - metrics_df.loc['Sharpe Ratio', 'Value'] * volatility
+            max_vol = max(plot_data['frontier_volatility'])
+            
+            fig.add_trace(go.Scatter(
+                x=[0, max_vol],
+                y=[risk_free, risk_free + metrics_df.loc['Sharpe Ratio', 'Value'] * max_vol],
+                mode='lines',
+                name='Capital Market Line',
+                line=dict(color='green', width=2, dash='dot'),
+                hovertemplate='Return: %{y:.2%}'
+            ))
+        
+        fig.update_layout(
+            title='<b>Efficient Frontier</b>',
+            xaxis_title='Volatility (Standard Deviation)',
+            yaxis_title='Expected Return',
+            hovermode='closest',
+            showlegend=True,
+            template='plotly_white',
+            height=600,
+            margin=dict(l=50, r=50, b=50, t=80)
+        )
+        
+        return fig
+    
+    except Exception as e:
+        st.error(f"Error plotting efficient frontier: {str(e)}")
+        return go.Figure()
 def hierarchical_risk_parity(prices, return_type):
     df = pd.DataFrame(prices)
     if return_type == "Log":
