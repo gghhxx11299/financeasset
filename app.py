@@ -822,7 +822,7 @@ def main():
     if "financials_df" not in st.session_state:
         st.session_state.financials_df = None
 
-    # Disclaimer at the top (NEW ADDITION)
+    # Disclaimer at the top
     st.markdown("""
     <div style="margin-bottom: 2rem; padding: 1rem; background-color: rgba(255,0,0,0.1); border-left: 4px solid #ff0000;">
     <strong style="color: #ff0000;">DISCLAIMER:</strong> This is for educational purposes only. Not professional financial advice. 
@@ -1141,8 +1141,7 @@ def main():
                 # Generate PDF report
                 try:
                     pdf = generate_pdf_report(st.session_state.input_data, greeks_df, summary_df, trading_advice)
-                    if pdf is not None:
-                        st.session_state.export_pdf = pdf
+                    st.session_state.export_pdf = pdf  # No need to encode here
                 except Exception as e:
                     st.error(f"Failed to generate PDF: {e}")
                     st.session_state.export_pdf = None
@@ -1225,6 +1224,5 @@ def main():
         Options trading involves substantial risk and is not suitable for all investors. Consult with a qualified financial professional before making any investment decisions.
         </div>
         """, unsafe_allow_html=True)
-        
 if __name__ == "__main__":
     main()
