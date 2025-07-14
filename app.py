@@ -666,50 +666,64 @@ def prepare_export_csv(greeks_df, summary_df, trading_advice):
 
 def generate_pdf_report(input_data, greeks_df, summary_df, trading_advice):
     """Generate PDF report using FPDF"""
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    try:
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
 
-    pdf.set_font("Arial", 'B', size=14)
-    pdf.cell(200, 10, "Options Analysis Report", ln=True, align='C')
-    pdf.ln(10)
+        # Title
+        pdf.set_font("Arial", 'B', size=14)
+        pdf.cell(200, 10, "Options Analysis Report", ln=True, align='C')
+        pdf.ln(10)
+        
+        # Input Parameters
+        pdf.set_font("Arial", 'B', size=12)
+        pdf.cell(200, 10, "Input Parameters", ln=True)
+        pdf.set_font("Arial", size=12)
+        for key, value in input_data.items():
+            pdf.cell(200, 10, f"{key}: {value}", ln=True)
+
+        # Greeks
+        pdf.ln(5)
+        pdf.set_font("Arial", 'B', size=12)
+        pdf.cell(200, 10, "Greeks", ln=True)
+        pdf.set_font("Arial", size=12)
+        for _, row in greeks_df.iterrows():
+            pdf.cell(200, 10, f"{row['Greek']}: {row['Value']}", ln=True)
+
+        # Summary
+        pdf.ln(5)
+        pdf.set_font("Arial", 'B', size=12)
+        pdf.cell(200, 10, "Summary", ln=True)
+        pdf.set_font("Arial", size=12)
+        for _, row in summary_df.iterrows():
+            pdf.cell(200, 10, f"{row['Metric']}: {row['Value']}", ln=True)
+
+        # Trading Advice
+        pdf.ln(5)
+        pdf.set_font("Arial", 'B', size=12)
+        pdf.cell(200, 10, "Trading Advice", ln=True)
+        pdf.set_font("Arial", size=12)
+        for _, row in trading_advice.iterrows():
+            try:
+                # Handle potential encoding issues in advice
+                advice = str(row['Advice']).encode('latin-1', 'replace').decode('latin-1')
+                reason = str(row['Reason']).encode('latin-1', 'replace').decode('latin-1')
+                pdf.multi_cell(200, 10, f"{advice}: {reason}")
+            except Exception as e:
+                pdf.multi_cell(200, 10, "Trading advice (special characters omitted)")
+
+        # Footer note
+        pdf.ln(10)
+        pdf.set_font("Arial", 'I', size=10)
+        pdf.cell(200, 10, "Note: Interactive plots are available in the web interface", ln=True)
+
+        # Return the PDF as bytes without re-encoding
+        return pdf.output(dest='S').encode('latin-1') if isinstance(pdf.output(dest='S'), str) else pdf.output(dest='S')
     
-    pdf.set_font("Arial", 'B', size=12)
-    pdf.cell(200, 10, "Input Parameters", ln=True)
-    pdf.set_font("Arial", size=12)
-    for key, value in input_data.items():
-        pdf.cell(200, 10, f"{key}: {value}", ln=True)
-
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', size=12)
-    pdf.cell(200, 10, "Greeks", ln=True)
-    pdf.set_font("Arial", size=12)
-    for _, row in greeks_df.iterrows():
-        pdf.cell(200, 10, f"{row['Greek']}: {row['Value']}", ln=True)
-
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', size=12)
-    pdf.cell(200, 10, "Summary", ln=True)
-    pdf.set_font("Arial", size=12)
-    for _, row in summary_df.iterrows():
-        pdf.cell(200, 10, f"{row['Metric']}: {row['Value']}", ln=True)
-
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', size=12)
-    pdf.cell(200, 10, "Trading Advice", ln=True)
-    pdf.set_font("Arial", size=12)
-    for _, row in trading_advice.iterrows():
-        try:
-            pdf.multi_cell(200, 10, f"{row['Advice']}: {row['Reason']}")
-        except:
-            pdf.multi_cell(200, 10, "Trading advice (special characters omitted)")
-
-    pdf.ln(10)
-    pdf.set_font("Arial", 'I', size=10)
-    pdf.cell(200, 10, "Note: Interactive plots are available in the web interface", ln=True)
-
-    return pdf.output(dest='S').encode('latin-1')
-
+    except Exception as e:
+        st.error(f"PDF generation failed: {str(e)}")
+        return None
 def generate_trading_advice(iv_divergences, latest_z, correlation, capital, comfortable_capital):
     """Generate personalized trading advice based on analysis"""
     advice = []
